@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Send, Code, Eye, Sparkles, Rocket, Save, Home } from 'lucide-react';
+import { Loader2, Send, Code, Eye, Sparkles, Rocket, Save, Home, MousePointer2, X } from 'lucide-react';
 import Link from 'next/link';
 
 function BuilderContent() {
@@ -27,6 +27,8 @@ function BuilderContent() {
   const [cssContent, setCssContent] = useState('');
   const [jsContent, setJsContent] = useState('');
   const [activeTab, setActiveTab] = useState('preview');
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedElement, setSelectedElement] = useState<{ tagName: string; html: string; text: string } | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -43,6 +45,28 @@ function BuilderContent() {
       updatePreview();
     }
   }, [htmlContent, cssContent, jsContent, activeTab]);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === 'ELEMENT_SELECTED') {
+        setSelectedElement(event.data.payload);
+        setIsSelectMode(false); // Auto-exit select mode after selection
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  useEffect(() => {
+    // Notify iframe about select mode change
+    if (iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({
+        type: 'TOGGLE_SELECT_MODE',
+        isSelectMode
+      }, '*');
+    }
+  }, [isSelectMode]);
 
   const initializeProject = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -144,10 +168,75 @@ function BuilderContent() {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>${cssContent}</style>
+        <style>
+          .webforge-selected-highlight {
+            outline: 2px solid #3b82f6 !important;
+            cursor: pointer !important;
+          }
+        </style>
       </head>
       <body>
         ${htmlContent}
         <script>${jsContent}</script>
+        <script>
+          (function() {
+            let isSelectMode = ${isSelectMode};
+            let hoveredElement = null;
+
+            window.addEventListener('message', (event) => {
+              if (event.data.type === 'TOGGLE_SELECT_MODE') {
+                isSelectMode = event.data.isSelectMode;
+                if (!isSelectMode && hoveredElement) {
+                  hoveredElement.classList.remove('webforge-selected-highlight');
+                  hoveredElement = null;
+                }
+              }
+            });
+
+            document.addEventListener('mouseover', (e) => {
+              if (!isSelectMode) return;
+              e.stopPropagation();
+              
+              if (hoveredElement) {
+                hoveredElement.classList.remove('webforge-selected-highlight');
+              }
+              
+              hoveredElement = e.target;
+              hoveredElement.classList.add('webforge-selected-highlight');
+            });
+
+            document.addEventListener('mouseout', (e) => {
+              if (!isSelectMode) return;
+              if (e.target === hoveredElement) {
+                e.target.classList.remove('webforge-selected-highlight');
+                hoveredElement = null;
+              }
+            });
+
+            document.addEventListener('click', (e) => {
+              if (!isSelectMode) return;
+              e.preventDefault();
+              e.stopPropagation();
+
+              const element = e.target;
+              const payload = {
+                tagName: element.tagName.toLowerCase(),
+                html: element.outerHTML,
+                text: element.innerText.substring(0, 100)
+              };
+
+              window.parent.postMessage({
+                type: 'ELEMENT_SELECTED',
+                payload
+              }, '*');
+              
+              if (hoveredElement) {
+                hoveredElement.classList.remove('webforge-selected-highlight');
+                hoveredElement = null;
+              }
+            });
+          })();
+        </script>
       </body>
       </html>
     `;
@@ -163,7 +252,9 @@ function BuilderContent() {
     const userMessage: Partial<ChatMessage> = {
       project_id: project.id,
       role: 'user',
-      content: input,
+      content: selectedElement
+        ? `[CONTEXT: User selected <${selectedElement.tagName}> element containing text "${selectedElement.text}"]\n${input}`
+        : input,
     };
 
     setMessages([...messages, userMessage as ChatMessage]);
@@ -261,6 +352,15 @@ function BuilderContent() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant={isSelectMode ? "secondary" : "outline"}
+            onClick={() => setIsSelectMode(!isSelectMode)}
+            className={isSelectMode ? "bg-blue-100 text-blue-700 border-blue-200" : ""}
+            title="Select an element to edit"
+          >
+            <MousePointer2 className="h-4 w-4 mr-2" />
+            {isSelectMode ? 'Select Mode On' : 'Select Element'}
+          </Button>
           <Button variant="outline" onClick={handleSave} disabled={!project}>
             <Save className="h-4 w-4 mr-2" />
             Save
@@ -352,6 +452,28 @@ function BuilderContent() {
           </div>
 
           <div className="border-t p-4 bg-white">
+            {selectedElement && (
+              <div className="mb-3 p-2 bg-blue-50 border border-blue-100 rounded-md flex items-center justify-between animate-in slide-in-from-bottom-2">
+                <div className="flex items-center gap-2 text-sm text-blue-700">
+                  <MousePointer2 className="h-3 w-3" />
+                  <span className="font-medium">Selected:</span>
+                  <code className="bg-blue-100 px-1 rounded text-xs">
+                    &lt;{selectedElement.tagName}&gt;
+                  </code>
+                  <span className="truncate max-w-[200px] text-xs opacity-70">
+                    {selectedElement.text}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-blue-500 hover:text-blue-700 hover:bg-blue-100"
+                  onClick={() => setSelectedElement(null)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
             <div className="flex gap-2">
               <Input
                 value={input}
