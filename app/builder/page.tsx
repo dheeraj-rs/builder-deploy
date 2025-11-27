@@ -15,6 +15,7 @@ function BuilderContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const templateId = searchParams.get('template');
+  const projectId = searchParams.get('project');
 
   const [project, setProject] = useState<Project | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -31,7 +32,7 @@ function BuilderContent() {
 
   useEffect(() => {
     initializeProject();
-  }, [templateId]);
+  }, [templateId, projectId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -51,6 +52,35 @@ function BuilderContent() {
       return;
     }
 
+    // Case 1: Load existing project
+    if (projectId) {
+      const { data: existingProject } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', projectId)
+        .single();
+
+      if (existingProject) {
+        setProject(existingProject);
+        setHtmlContent(existingProject.html_content);
+        setCssContent(existingProject.css_content);
+        setJsContent(existingProject.js_content || '');
+
+        // Load chat history
+        const { data: chatHistory } = await supabase
+          .from('chat_messages')
+          .select('*')
+          .eq('project_id', projectId)
+          .order('created_at', { ascending: true });
+
+        if (chatHistory) {
+          setMessages(chatHistory);
+        }
+        return;
+      }
+    }
+
+    // Case 2: Create from template
     if (templateId) {
       const { data: template } = await supabase
         .from('templates')
@@ -83,6 +113,7 @@ function BuilderContent() {
         }
       }
     } else {
+      // Case 3: Create new blank project
       const { data: newProject } = await supabase
         .from('projects')
         .insert({
@@ -268,15 +299,15 @@ function BuilderContent() {
                   <Card
                     key={idx}
                     className={`p-4 ${msg.role === 'user'
-                        ? 'bg-blue-50 ml-12'
-                        : 'bg-slate-50 mr-12'
+                      ? 'bg-blue-50 ml-12'
+                      : 'bg-slate-50 mr-12'
                       }`}
                   >
                     <div className="flex items-start gap-3">
                       <div
                         className={`w-8 h-8 rounded-full flex items-center justify-center ${msg.role === 'user'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-slate-600 text-white'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-600 text-white'
                           }`}
                       >
                         {msg.role === 'user' ? 'U' : 'AI'}
