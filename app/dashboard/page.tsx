@@ -11,23 +11,10 @@ import Link from 'next/link';
 export default function DashboardPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      router.push('/');
-      return;
-    }
-
-    setUser(user);
     loadProjects();
-  };
+  }, []);
 
   const loadProjects = async () => {
     const { data, error } = await supabase
@@ -49,10 +36,6 @@ export default function DashboardPage() {
     loadProjects();
   };
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.push('/');
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -67,9 +50,6 @@ export default function DashboardPage() {
                 </span>
               </div>
             </Link>
-            <Button variant="outline" onClick={handleSignOut}>
-              Sign Out
-            </Button>
           </div>
         </div>
       </nav>
@@ -119,11 +99,10 @@ export default function DashboardPage() {
                       </CardDescription>
                     </div>
                     <div
-                      className={`px-2 py-1 text-xs rounded-full ${
-                        project.status === 'deployed'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-slate-100 text-slate-700'
-                      }`}
+                      className={`px-2 py-1 text-xs rounded-full ${project.status === 'deployed'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-slate-100 text-slate-700'
+                        }`}
                     >
                       {project.status}
                     </div>

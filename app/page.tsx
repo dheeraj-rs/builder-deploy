@@ -9,17 +9,10 @@ import Link from 'next/link';
 
 export default function Home() {
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
     loadTemplates();
-    checkUser();
   }, []);
-
-  const checkUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
-  };
 
   const loadTemplates = async () => {
     const { data, error } = await supabase
@@ -31,29 +24,6 @@ export default function Home() {
     if (data) {
       setTemplates(data);
     }
-  };
-
-  const handleSignIn = async () => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: 'demo@example.com',
-      password: 'demo123456',
-    });
-
-    if (error) {
-      const { error: signUpError } = await supabase.auth.signUp({
-        email: 'demo@example.com',
-        password: 'demo123456',
-      });
-
-      if (!signUpError) {
-        await supabase.auth.signInWithPassword({
-          email: 'demo@example.com',
-          password: 'demo123456',
-        });
-      }
-    }
-
-    checkUser();
   };
 
   return (
@@ -68,13 +38,9 @@ export default function Home() {
               </span>
             </div>
             <div className="flex items-center gap-4">
-              {user ? (
-                <Link href="/dashboard">
-                  <Button>Dashboard</Button>
-                </Link>
-              ) : (
-                <Button onClick={handleSignIn}>Sign In</Button>
-              )}
+              <Link href="/dashboard">
+                <Button>Dashboard</Button>
+              </Link>
             </div>
           </div>
         </div>

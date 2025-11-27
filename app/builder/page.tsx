@@ -29,6 +29,7 @@ function BuilderContent() {
   const [activeTab, setActiveTab] = useState('preview');
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedElement, setSelectedElement] = useState<{ tagName: string; html: string; text: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -69,92 +70,100 @@ function BuilderContent() {
   }, [isSelectMode]);
 
   const initializeProject = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    try {
+      // Public access - no user check required
 
-    if (!user) {
-      router.push('/');
-      return;
-    }
-
-    // Case 1: Load existing project
-    if (projectId) {
-      const { data: existingProject } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('id', projectId)
-        .single();
-
-      if (existingProject) {
-        setProject(existingProject);
-        setHtmlContent(existingProject.html_content);
-        setCssContent(existingProject.css_content);
-        setJsContent(existingProject.js_content || '');
-
-        // Load chat history
-        const { data: chatHistory } = await supabase
-          .from('chat_messages')
+      // Case 1: Load existing project
+      if (projectId) {
+        const { data: existingProject, error: fetchError } = await supabase
+          .from('projects')
           .select('*')
-          .eq('project_id', projectId)
-          .order('created_at', { ascending: true });
+          .eq('id', projectId)
+          .single();
 
-        if (chatHistory) {
-          setMessages(chatHistory);
+        if (fetchError) throw fetchError;
+
+        if (existingProject) {
+          setProject(existingProject);
+          setHtmlContent(existingProject.html_content);
+          setCssContent(existingProject.css_content);
+          setJsContent(existingProject.js_content || '');
+
+          // Load chat history
+          const { data: chatHistory } = await supabase
+            .from('chat_messages')
+            .select('*')
+            .eq('project_id', projectId)
+            .order('created_at', { ascending: true });
+
+          if (chatHistory) {
+            setMessages(chatHistory);
+          }
+          return;
         }
-        return;
       }
-    }
 
-    // Case 2: Create from template
-    if (templateId) {
-      const { data: template } = await supabase
-        .from('templates')
-        .select('*')
-        .eq('id', templateId)
-        .maybeSingle();
+      // Case 2: Create from template
+      if (templateId) {
+        const { data: template, error: templateError } = await supabase
+          .from('templates')
+          .select('*')
+          .eq('id', templateId)
+          .maybeSingle();
 
-      if (template) {
-        setHtmlContent(template.html_content);
-        setCssContent(template.css_content);
-        setJsContent(template.js_content || '');
+        if (templateError) throw templateError;
 
-        const { data: newProject } = await supabase
+        if (template) {
+          setHtmlContent(template.html_content);
+          setCssContent(template.css_content);
+          setJsContent(template.js_content || '');
+
+          const { data: newProject, error: createError } = await supabase
+            .from('projects')
+            .insert({
+              user_id: crypto.randomUUID(), // Public project
+              name: `${template.name} - Copy`,
+              description: template.description,
+              template_id: template.id,
+              html_content: template.html_content,
+              css_content: template.css_content,
+              js_content: template.js_content || '',
+              status: 'draft',
+            })
+            .select()
+            .single();
+
+          if (createError) throw createError;
+
+          if (newProject) {
+            setProject(newProject);
+          }
+        }
+      } else {
+        // Case 3: Create new blank project
+        const { data: newProject, error: createError } = await supabase
           .from('projects')
           .insert({
-            user_id: user.id,
-            name: `${template.name} - Copy`,
-            description: template.description,
-            template_id: template.id,
-            html_content: template.html_content,
-            css_content: template.css_content,
-            js_content: template.js_content || '',
+            user_id: crypto.randomUUID(), // Public project
+            name: 'New Website',
+            description: 'Created with AI',
+            html_content: '',
+            css_content: '',
+            js_content: '',
             status: 'draft',
           })
           .select()
           .single();
 
+        if (createError) throw createError;
+
         if (newProject) {
           setProject(newProject);
         }
       }
-    } else {
-      // Case 3: Create new blank project
-      const { data: newProject } = await supabase
-        .from('projects')
-        .insert({
-          user_id: user.id,
-          name: 'New Website',
-          description: 'Created with AI',
-          html_content: '',
-          css_content: '',
-          js_content: '',
-          status: 'draft',
-        })
-        .select()
-        .single();
-
-      if (newProject) {
-        setProject(newProject);
-      }
+    } catch (err: any) {
+      console.error('Error initializing project:', err);
+      setError(err.message || 'Failed to load project. Please check your connection and configuration.');
     }
   };
 
@@ -348,7 +357,7 @@ function BuilderContent() {
           </Link>
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-blue-600" />
-            <span className="font-semibold">{project?.name || 'Loading...'}</span>
+            <span className="font-semibold text-red-500">{error ? `Error: ${error}` : (project?.name || 'Loading...')}</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -512,38 +521,48 @@ function BuilderContent() {
               </TabsList>
             </div>
 
-            <TabsContent value="preview" className="flex-1 m-0 p-0">
-              <iframe
-                ref={iframeRef}
-                className="w-full h-full border-0"
-                title="Preview"
-              />
-            </TabsContent>
+            <div className="flex-1 m-0 p-0 relative">
+              {/* Preview Tab - Always mounted, toggled via CSS */}
+              <div
+                className="w-full h-full absolute inset-0"
+                style={{ visibility: activeTab === 'preview' ? 'visible' : 'hidden', zIndex: activeTab === 'preview' ? 10 : 0 }}
+              >
+                <iframe
+                  ref={iframeRef}
+                  className="w-full h-full border-0"
+                  title="Preview"
+                />
+              </div>
 
-            <TabsContent value="code" className="flex-1 m-0 overflow-auto">
-              <div className="p-4 space-y-4 h-full overflow-y-auto">
-                <div>
-                  <h3 className="font-semibold mb-2 text-sm text-slate-600">HTML</h3>
-                  <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto text-xs">
-                    <code>{htmlContent || '// HTML will appear here'}</code>
-                  </pre>
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-2 text-sm text-slate-600">CSS</h3>
-                  <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto text-xs">
-                    <code>{cssContent || '// CSS will appear here'}</code>
-                  </pre>
-                </div>
-                {jsContent && (
+              {/* Code Tab */}
+              <div
+                className="w-full h-full absolute inset-0 bg-white"
+                style={{ visibility: activeTab === 'code' ? 'visible' : 'hidden', zIndex: activeTab === 'code' ? 10 : 0 }}
+              >
+                <div className="p-4 space-y-4 h-full overflow-y-auto">
                   <div>
-                    <h3 className="font-semibold mb-2 text-sm text-slate-600">JavaScript</h3>
+                    <h3 className="font-semibold mb-2 text-sm text-slate-600">HTML</h3>
                     <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto text-xs">
-                      <code>{jsContent}</code>
+                      <code>{htmlContent || '// HTML will appear here'}</code>
                     </pre>
                   </div>
-                )}
+                  <div>
+                    <h3 className="font-semibold mb-2 text-sm text-slate-600">CSS</h3>
+                    <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto text-xs">
+                      <code>{cssContent || '// CSS will appear here'}</code>
+                    </pre>
+                  </div>
+                  {jsContent && (
+                    <div>
+                      <h3 className="font-semibold mb-2 text-sm text-slate-600">JavaScript</h3>
+                      <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto text-xs">
+                        <code>{jsContent}</code>
+                      </pre>
+                    </div>
+                  )}
+                </div>
               </div>
-            </TabsContent>
+            </div>
           </Tabs>
         </div>
       </div>
