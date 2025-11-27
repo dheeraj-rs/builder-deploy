@@ -77,7 +77,11 @@ export async function POST(request: NextRequest) {
 
     const deploymentData = await deploymentResponse.json();
 
-    const deploymentUrl = `https://${deploymentData.url}`;
+    // Prefer the alias (production URL) if available, otherwise use the deployment URL
+    let deploymentUrl = `https://${deploymentData.url}`;
+    if (deploymentData.alias && deploymentData.alias.length > 0) {
+      deploymentUrl = `https://${deploymentData.alias[0]}`;
+    }
 
     return NextResponse.json({
       success: true,
