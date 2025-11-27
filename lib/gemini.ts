@@ -4,6 +4,58 @@ const API_KEY =
 const API_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
+export async function generateWebsitePlan(
+  prompt: string,
+  conversationHistory: Array<{ role: string; content: string }>
+) {
+  try {
+    const systemPrompt = `You are an expert web architect. Analyze the user's request and create a brief technical plan for the website.
+    
+    Output a short paragraph describing:
+    1. The core layout structure
+    2. Key color palette and typography choices
+    3. Main interactive elements
+    
+    Keep it concise (under 50 words) and technical. Start with "Plan: "`;
+
+    const messages = [
+      { role: 'user', parts: [{ text: systemPrompt }] },
+      ...conversationHistory.map((msg) => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content }],
+      })),
+      { role: 'user', parts: [{ text: prompt }] },
+    ];
+
+    const response = await fetch(`${API_URL}?key=${API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: messages,
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 200,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gemini API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return (
+      data.candidates[0]?.content?.parts[0]?.text ||
+      'Plan: Analyzing requirements...'
+    );
+  } catch (error) {
+    console.error('Error generating plan:', error);
+    return 'Plan: Analyzing requirements...';
+  }
+}
+
 export async function generateWebsiteCode(
   prompt: string,
   conversationHistory: Array<{ role: string; content: string }>

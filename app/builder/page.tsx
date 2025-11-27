@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase, type Project, type ChatMessage } from '@/lib/supabase';
-import { generateWebsiteCode } from '@/lib/gemini';
+import { generateWebsiteCode, generateWebsitePlan } from '@/lib/gemini';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -20,6 +20,8 @@ function BuilderContent() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationStatus, setGenerationStatus] = useState<'idle' | 'thinking' | 'generating' | 'completed'>('idle');
+  const [currentThought, setCurrentThought] = useState('');
   const [htmlContent, setHtmlContent] = useState('');
   const [cssContent, setCssContent] = useState('');
   const [jsContent, setJsContent] = useState('');
@@ -36,8 +38,10 @@ function BuilderContent() {
   }, [messages]);
 
   useEffect(() => {
-    updatePreview();
-  }, [htmlContent, cssContent, jsContent]);
+    if (activeTab === 'preview') {
+      updatePreview();
+    }
+  }, [htmlContent, cssContent, jsContent, activeTab]);
 
   const initializeProject = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -143,6 +147,13 @@ function BuilderContent() {
         content: msg.content,
       }));
 
+      // Step 1: Thinking / Planning
+      setGenerationStatus('thinking');
+      const plan = await generateWebsitePlan(input, conversationHistory);
+      setCurrentThought(plan);
+
+      // Step 2: Generating Code
+      setGenerationStatus('generating');
       const result = await generateWebsiteCode(input, conversationHistory);
 
       setHtmlContent(result.html);
@@ -167,6 +178,7 @@ function BuilderContent() {
 
       await supabase.from('chat_messages').insert(assistantMessage);
       setMessages([...messages, userMessage as ChatMessage, assistantMessage as ChatMessage]);
+      setGenerationStatus('completed');
     } catch (error) {
       console.error('Error generating website:', error);
       const errorMessage: Partial<ChatMessage> = {
@@ -175,8 +187,10 @@ function BuilderContent() {
         content: 'Sorry, I encountered an error while generating your website. Please try again.',
       };
       setMessages([...messages, userMessage as ChatMessage, errorMessage as ChatMessage]);
+      setGenerationStatus('idle');
     } finally {
       setIsGenerating(false);
+      setTimeout(() => setGenerationStatus('idle'), 3000);
     }
   };
 
@@ -253,19 +267,17 @@ function BuilderContent() {
                 {messages.map((msg, idx) => (
                   <Card
                     key={idx}
-                    className={`p-4 ${
-                      msg.role === 'user'
+                    className={`p-4 ${msg.role === 'user'
                         ? 'bg-blue-50 ml-12'
                         : 'bg-slate-50 mr-12'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-start gap-3">
                       <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          msg.role === 'user'
+                        className={`w-8 h-8 rounded-full flex items-center justify-center ${msg.role === 'user'
                             ? 'bg-blue-600 text-white'
                             : 'bg-slate-600 text-white'
-                        }`}
+                          }`}
                       >
                         {msg.role === 'user' ? 'U' : 'AI'}
                       </div>
@@ -276,6 +288,34 @@ function BuilderContent() {
                   </Card>
                 ))}
                 <div ref={messagesEndRef} />
+
+                {isGenerating && (
+                  <div className="p-4 bg-slate-50 mr-12 rounded-lg border border-slate-100">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center text-white animate-pulse">
+                        <Sparkles className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-slate-700">
+                            {generationStatus === 'thinking' ? 'Thinking...' : 'Generating Code...'}
+                          </span>
+                          <Loader2 className="h-3 w-3 animate-spin text-slate-400" />
+                        </div>
+                        {generationStatus === 'thinking' && currentThought && (
+                          <p className="text-xs text-slate-500 italic animate-in fade-in duration-500">
+                            {currentThought}
+                          </p>
+                        )}
+                        {generationStatus === 'generating' && (
+                          <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-500 animate-progress-indeterminate" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>

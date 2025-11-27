@@ -58,49 +58,63 @@ export default function DeployPage() {
         const data = await response.json();
 
         if (data.success) {
-          if (data.status === 'READY') {
+          // Update steps based on Vercel status
+          // Vercel states: QUEUED, INITIALIZING, ANALYZING, BUILDING, DEPLOYING, READY, ERROR, CANCELED
+
+          if (data.status === 'QUEUED' || data.status === 'INITIALIZING') {
+            setCurrentStep(1);
+            setProgress(10);
+          } else if (data.status === 'BUILDING' || data.status === 'ANALYZING') {
+            setCurrentStep(2);
+            // We can't know exact build progress, so we'll just keep it at a "busy" state or slowly increment
+            setProgress(prev => Math.min(prev + 1, 60));
+          } else if (data.status === 'DEPLOYING') {
+            // Map DEPLOYING to our "Uploading" step
+            setCurrentStep(4);
+            setProgress(80);
+          } else if (data.status === 'READY') {
             clearInterval(pollInterval);
-            setDeploymentStatus('success');
-            setDeploymentUrl(data.url);
-            setIsDeploying(false);
 
-            // Update Supabase with final status
-            await supabase
-              .from('projects')
-              .update({
-                vercel_url: data.url,
-                status: 'deployed',
-              })
-              .eq('id', projectId);
+            // Visual completion first
+            setCurrentStep(6); // Ensure all steps look complete
+            setProgress(100);
 
-            await supabase
-              .from('deployments')
-              .update({
-                url: data.url,
-                status: 'success',
-              })
-              .eq('vercel_deployment_id', deploymentId);
+            // Wait a bit to show the completion state before switching UI
+            setTimeout(async () => {
+              setDeploymentStatus('success');
+              setDeploymentUrl(data.url);
+              setIsDeploying(false);
+
+              // Update Supabase with final status
+              await supabase
+                .from('projects')
+                .update({
+                  vercel_url: data.url,
+                  status: 'deployed',
+                })
+                .eq('id', projectId);
+
+              await supabase
+                .from('deployments')
+                .update({
+                  url: data.url,
+                  status: 'success',
+                })
+                .eq('vercel_deployment_id', deploymentId);
+            }, 2000); // 2 second delay to let user see the checkmarks
 
           } else if (data.status === 'ERROR' || data.status === 'CANCELED') {
             clearInterval(pollInterval);
             setDeploymentStatus('error');
             setErrorMessage('Deployment failed or was canceled by Vercel.');
             setIsDeploying(false);
-            throw new Error('Deployment failed or was canceled');
-          } else {
-            // Still building/queued
-            // We can update UI here if we want to show detailed status like "Building..." vs "Queued..."
-            console.log('Deployment status:', data.status);
-            // Simulate progress based on Vercel's status if available, or just keep it moving
-            setProgress(prev => Math.min(prev + 5, 95)); // Keep progress moving
+            // throw new Error('Deployment failed or was canceled'); // Don't throw here, just handle it
           }
         } else {
-          // API call failed, but not necessarily deployment error
           console.error('Failed to fetch deployment status:', data.error);
         }
       } catch (error) {
         console.error('Polling error:', error);
-        // Don't stop polling immediately on network error, but maybe after some retries
       }
     }, 3000); // Poll every 3 seconds
   };
@@ -114,14 +128,7 @@ export default function DeployPage() {
     setCurrentStep(0);
     setProgress(0);
 
-    // Start simulated progress for visual feedback while waiting for initial response
-    // We can keep this but make it indefinite or loop until real status is ready
-    const progressInterval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 90) return 90; // Cap at 90% until ready
-        return prev + 1;
-      });
-    }, 500);
+    // We don't need simulated progress anymore, the polling will handle it
 
     try {
       const response = await fetch('/api/deploy', {
@@ -141,7 +148,6 @@ export default function DeployPage() {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        clearInterval(progressInterval); // Stop the initial simulation
         // Update project with initial Vercel deployment ID
         await supabase
           .from('projects')
@@ -168,11 +174,9 @@ export default function DeployPage() {
         // The polling function will handle the success state.
 
       } else {
-        clearInterval(progressInterval);
         throw new Error(result.error || 'Deployment failed');
       }
     } catch (error: any) {
-      clearInterval(progressInterval);
       console.error('Deployment error:', error);
       setDeploymentStatus('error');
       setErrorMessage(error.message || 'An error occurred during deployment');

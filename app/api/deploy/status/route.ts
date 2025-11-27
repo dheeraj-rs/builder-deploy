@@ -58,6 +58,8 @@ export async function GET(request: NextRequest) {
       status: data.readyState, // QUEUED, BUILDING, READY, ERROR, CANCELED
       url: deploymentUrl,
       createdAt: data.createdAt,
+      buildingAt: data.buildingAt,
+      readyAt: data.readyAt,
     });
   } catch (error: any) {
     console.error('Status check error:', error);
