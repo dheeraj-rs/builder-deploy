@@ -1,0 +1,367 @@
+'use client';
+
+import { useEffect, useState, useRef, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { supabase, type Project, type ChatMessage } from '@/lib/supabase';
+import { generateWebsiteCode } from '@/lib/gemini';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Loader2, Send, Code, Eye, Sparkles, Rocket, Save, Home } from 'lucide-react';
+import Link from 'next/link';
+
+function BuilderContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const templateId = searchParams.get('template');
+
+  const [project, setProject] = useState<Project | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [htmlContent, setHtmlContent] = useState('');
+  const [cssContent, setCssContent] = useState('');
+  const [jsContent, setJsContent] = useState('');
+  const [activeTab, setActiveTab] = useState('preview');
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    initializeProject();
+  }, [templateId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
+    updatePreview();
+  }, [htmlContent, cssContent, jsContent]);
+
+  const initializeProject = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      router.push('/');
+      return;
+    }
+
+    if (templateId) {
+      const { data: template } = await supabase
+        .from('templates')
+        .select('*')
+        .eq('id', templateId)
+        .maybeSingle();
+
+      if (template) {
+        setHtmlContent(template.html_content);
+        setCssContent(template.css_content);
+        setJsContent(template.js_content || '');
+
+        const { data: newProject } = await supabase
+          .from('projects')
+          .insert({
+            user_id: user.id,
+            name: `${template.name} - Copy`,
+            description: template.description,
+            template_id: template.id,
+            html_content: template.html_content,
+            css_content: template.css_content,
+            js_content: template.js_content || '',
+            status: 'draft',
+          })
+          .select()
+          .single();
+
+        if (newProject) {
+          setProject(newProject);
+        }
+      }
+    } else {
+      const { data: newProject } = await supabase
+        .from('projects')
+        .insert({
+          user_id: user.id,
+          name: 'New Website',
+          description: 'Created with AI',
+          html_content: '',
+          css_content: '',
+          js_content: '',
+          status: 'draft',
+        })
+        .select()
+        .single();
+
+      if (newProject) {
+        setProject(newProject);
+      }
+    }
+  };
+
+  const updatePreview = () => {
+    if (!iframeRef.current) return;
+
+    const fullHtml = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>${cssContent}</style>
+      </head>
+      <body>
+        ${htmlContent}
+        <script>${jsContent}</script>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([fullHtml], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    iframeRef.current.src = url;
+  };
+
+  const handleSendMessage = async () => {
+    if (!input.trim() || !project || isGenerating) return;
+
+    const userMessage: Partial<ChatMessage> = {
+      project_id: project.id,
+      role: 'user',
+      content: input,
+    };
+
+    setMessages([...messages, userMessage as ChatMessage]);
+    setInput('');
+    setIsGenerating(true);
+
+    try {
+      await supabase.from('chat_messages').insert(userMessage);
+
+      const conversationHistory = messages.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      }));
+
+      const result = await generateWebsiteCode(input, conversationHistory);
+
+      setHtmlContent(result.html);
+      setCssContent(result.css);
+      setJsContent(result.js);
+
+      await supabase
+        .from('projects')
+        .update({
+          html_content: result.html,
+          css_content: result.css,
+          js_content: result.js,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', project.id);
+
+      const assistantMessage: Partial<ChatMessage> = {
+        project_id: project.id,
+        role: 'assistant',
+        content: 'I have generated your website based on your requirements. You can see the preview on the right. Let me know if you would like any changes!',
+      };
+
+      await supabase.from('chat_messages').insert(assistantMessage);
+      setMessages([...messages, userMessage as ChatMessage, assistantMessage as ChatMessage]);
+    } catch (error) {
+      console.error('Error generating website:', error);
+      const errorMessage: Partial<ChatMessage> = {
+        project_id: project.id,
+        role: 'assistant',
+        content: 'Sorry, I encountered an error while generating your website. Please try again.',
+      };
+      setMessages([...messages, userMessage as ChatMessage, errorMessage as ChatMessage]);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleDeploy = async () => {
+    if (!project) return;
+    router.push(`/deploy/${project.id}`);
+  };
+
+  const handleSave = async () => {
+    if (!project) return;
+
+    await supabase
+      .from('projects')
+      .update({
+        html_content: htmlContent,
+        css_content: cssContent,
+        js_content: jsContent,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', project.id);
+
+    alert('Project saved successfully!');
+  };
+
+  return (
+    <div className="h-screen flex flex-col bg-slate-50">
+      <nav className="border-b bg-white px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link href="/">
+            <Button variant="ghost" size="icon">
+              <Home className="h-5 w-5" />
+            </Button>
+          </Link>
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-blue-600" />
+            <span className="font-semibold">{project?.name || 'Loading...'}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleSave} disabled={!project}>
+            <Save className="h-4 w-4 mr-2" />
+            Save
+          </Button>
+          <Button onClick={handleDeploy} disabled={!project || !htmlContent}>
+            <Rocket className="h-4 w-4 mr-2" />
+            Deploy to Vercel
+          </Button>
+        </div>
+      </nav>
+
+      <div className="flex-1 flex overflow-hidden">
+        <div className="w-1/2 border-r flex flex-col bg-white">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.length === 0 ? (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center max-w-md">
+                  <Sparkles className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+                  <h2 className="text-2xl font-bold mb-2">Start Building with AI</h2>
+                  <p className="text-slate-600 mb-4">
+                    Describe the website you want to create, and I will generate it for you!
+                  </p>
+                  <div className="space-y-2 text-left">
+                    <p className="text-sm text-slate-500">Try asking:</p>
+                    <ul className="text-sm text-slate-600 space-y-1">
+                      <li>• Create a landing page for a coffee shop</li>
+                      <li>• Build a portfolio website for a photographer</li>
+                      <li>• Make a pricing page with 3 tiers</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {messages.map((msg, idx) => (
+                  <Card
+                    key={idx}
+                    className={`p-4 ${
+                      msg.role === 'user'
+                        ? 'bg-blue-50 ml-12'
+                        : 'bg-slate-50 mr-12'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          msg.role === 'user'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-600 text-white'
+                        }`}
+                      >
+                        {msg.role === 'user' ? 'U' : 'AI'}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+                <div ref={messagesEndRef} />
+              </>
+            )}
+          </div>
+
+          <div className="border-t p-4 bg-white">
+            <div className="flex gap-2">
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                placeholder="Describe what you want to build..."
+                disabled={isGenerating}
+                className="flex-1"
+              />
+              <Button
+                onClick={handleSendMessage}
+                disabled={isGenerating || !input.trim()}
+              >
+                {isGenerating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="w-1/2 flex flex-col">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+            <div className="border-b bg-white px-4">
+              <TabsList className="w-full justify-start">
+                <TabsTrigger value="preview" className="gap-2">
+                  <Eye className="h-4 w-4" />
+                  Preview
+                </TabsTrigger>
+                <TabsTrigger value="code" className="gap-2">
+                  <Code className="h-4 w-4" />
+                  Code
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <TabsContent value="preview" className="flex-1 m-0 p-0">
+              <iframe
+                ref={iframeRef}
+                className="w-full h-full border-0"
+                title="Preview"
+              />
+            </TabsContent>
+
+            <TabsContent value="code" className="flex-1 m-0 overflow-auto">
+              <div className="p-4 space-y-4 h-full overflow-y-auto">
+                <div>
+                  <h3 className="font-semibold mb-2 text-sm text-slate-600">HTML</h3>
+                  <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto text-xs">
+                    <code>{htmlContent || '// HTML will appear here'}</code>
+                  </pre>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-2 text-sm text-slate-600">CSS</h3>
+                  <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto text-xs">
+                    <code>{cssContent || '// CSS will appear here'}</code>
+                  </pre>
+                </div>
+                {jsContent && (
+                  <div>
+                    <h3 className="font-semibold mb-2 text-sm text-slate-600">JavaScript</h3>
+                    <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto text-xs">
+                      <code>{jsContent}</code>
+                    </pre>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function BuilderPage() {
+  return (
+    <Suspense fallback={<div className="h-screen flex items-center justify-center">Loading...</div>}>
+      <BuilderContent />
+    </Suspense>
+  );
+}
