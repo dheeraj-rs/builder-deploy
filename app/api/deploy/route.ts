@@ -11,7 +11,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Vercel token not configured. Please add VERCEL_TOKEN to your environment variables.',
+          error:
+            'Vercel token not configured. Please add VERCEL_TOKEN to your environment variables.',
         },
         { status: 500 }
       );
@@ -49,14 +50,17 @@ export async function POST(request: NextRequest) {
       target: 'production',
     };
 
-    const deploymentResponse = await fetch('https://api.vercel.com/v13/deployments', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${vercelToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(deploymentPayload),
-    });
+    const deploymentResponse = await fetch(
+      'https://api.vercel.com/v13/deployments',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${vercelToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(deploymentPayload),
+      }
+    );
 
     if (!deploymentResponse.ok) {
       const errorData = await deploymentResponse.json();

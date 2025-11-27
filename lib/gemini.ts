@@ -1,10 +1,13 @@
 const API_KEY =
   process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
-  'AIzaSyAhJB5h3btdONhVYXcjvalk5ePTBm9JBgsM';
+  'AIzaSyAhJB5h3btdONhVYXcjvalk5ePTBm9JBgM';
 const API_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
-export async function generateWebsiteCode(prompt: string, conversationHistory: Array<{ role: string; content: string }>) {
+export async function generateWebsiteCode(
+  prompt: string,
+  conversationHistory: Array<{ role: string; content: string }>
+) {
   try {
     const systemPrompt = `You are an expert web developer. Generate complete, production-ready HTML, CSS, and JavaScript code based on user requirements.
 
@@ -55,7 +58,9 @@ export async function generateWebsiteCode(prompt: string, conversationHistory: A
 
     let cleanedText = generatedText.trim();
     if (cleanedText.startsWith('```json')) {
-      cleanedText = cleanedText.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+      cleanedText = cleanedText
+        .replace(/^```json\n?/, '')
+        .replace(/\n?```$/, '');
     } else if (cleanedText.startsWith('```')) {
       cleanedText = cleanedText.replace(/^```\n?/, '').replace(/\n?```$/, '');
     }
@@ -73,7 +78,10 @@ export async function generateWebsiteCode(prompt: string, conversationHistory: A
   }
 }
 
-export async function chatWithAI(message: string, conversationHistory: Array<{ role: string; content: string }>) {
+export async function chatWithAI(
+  message: string,
+  conversationHistory: Array<{ role: string; content: string }>
+) {
   try {
     const messages = conversationHistory.map((msg) => ({
       role: msg.role === 'user' ? 'user' : 'model',
@@ -104,7 +112,10 @@ export async function chatWithAI(message: string, conversationHistory: Array<{ r
     }
 
     const data = await response.json();
-    return data.candidates[0]?.content?.parts[0]?.text || 'Sorry, I could not generate a response.';
+    return (
+      data.candidates[0]?.content?.parts[0]?.text ||
+      'Sorry, I could not generate a response.'
+    );
   } catch (error) {
     console.error('Error chatting with AI:', error);
     throw error;
