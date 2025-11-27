@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Rocket, ExternalLink, ArrowLeft, CheckCircle2, XCircle, Globe, GitBranch, Clock, Terminal } from 'lucide-react';
+import { Loader2, Rocket, ExternalLink, ArrowLeft, CheckCircle2, XCircle, Globe, GitBranch, Clock, Terminal, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import Link from 'next/link';
 
 const DEPLOYMENT_STEPS = [
@@ -30,6 +32,15 @@ export default function DeployPage() {
   const [deploymentUrl, setDeploymentUrl] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Advanced Configuration State
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [framework, setFramework] = useState('other');
+  const [rootDirectory, setRootDirectory] = useState(''); // Default to empty string to avoid Vercel errors
+  const [buildCommand, setBuildCommand] = useState('');
+  const [outputDirectory, setOutputDirectory] = useState('');
+  const [installCommand, setInstallCommand] = useState('');
+  const [envVars, setEnvVars] = useState<{ key: string; value: string }[]>([]);
+
   // Loading state
   const [currentStep, setCurrentStep] = useState(0);
   const [progress, setProgress] = useState(0);
@@ -47,7 +58,9 @@ export default function DeployPage() {
 
     if (data) {
       setProject(data);
-      setProjectName(data.name.toLowerCase().replace(/[^a-z0-9]/g, '-'));
+      // Ensure unique project name by appending random string if needed, or just use timestamp
+      const uniqueSuffix = Math.random().toString(36).substring(2, 7);
+      setProjectName(`${data.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${uniqueSuffix}`);
     }
   };
 
@@ -142,6 +155,13 @@ export default function DeployPage() {
           htmlContent: project.html_content,
           cssContent: project.css_content,
           jsContent: project.js_content,
+          // Only send advanced config if enabled
+          framework: showAdvanced && framework !== 'other' ? framework : null,
+          rootDirectory: showAdvanced ? rootDirectory : null,
+          buildCommand: showAdvanced ? buildCommand : null,
+          outputDirectory: showAdvanced ? outputDirectory : null,
+          installCommand: showAdvanced ? installCommand : null,
+          envVars: showAdvanced ? envVars : [],
         }),
       });
 
@@ -273,6 +293,177 @@ export default function DeployPage() {
                       <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">JS Chars</div>
                     </div>
                   </div>
+                </div>
+
+                <div className="border border-gray-800 rounded-lg overflow-hidden">
+                  <div className="flex items-center justify-between p-4 bg-gray-900">
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        checked={showAdvanced}
+                        onCheckedChange={setShowAdvanced}
+                        id="advanced-mode"
+                      />
+                      <Label htmlFor="advanced-mode" className="font-medium text-gray-200 cursor-pointer">
+                        Enable Advanced Configuration
+                      </Label>
+                    </div>
+                  </div>
+
+                  {showAdvanced && (
+                    <div className="p-4 space-y-6 bg-black border-t border-gray-800">
+                      <div className="space-y-2">
+                        <Label className="text-gray-200">Framework Preset</Label>
+                        <Select
+                          value={framework}
+                          onValueChange={(value) => {
+                            setFramework(value);
+                            // Auto-fill defaults based on framework
+                            switch (value) {
+                              case 'astro':
+                                setBuildCommand('npm run build');
+                                setOutputDirectory('dist');
+                                setInstallCommand('npm install');
+                                break;
+                              case 'nextjs':
+                                setBuildCommand('next build');
+                                setOutputDirectory('.next');
+                                setInstallCommand('npm install');
+                                break;
+                              case 'create-react-app':
+                                setBuildCommand('react-scripts build');
+                                setOutputDirectory('build');
+                                setInstallCommand('npm install');
+                                break;
+                              case 'vite':
+                                setBuildCommand('vite build');
+                                setOutputDirectory('dist');
+                                setInstallCommand('npm install');
+                                break;
+                              case 'html':
+                              case 'other':
+                              default:
+                                setBuildCommand('');
+                                setOutputDirectory('');
+                                setInstallCommand('');
+                                break;
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="bg-gray-900 border-gray-700 text-white">
+                            <SelectValue placeholder="Select framework" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-900 border-gray-700 text-white">
+                            <SelectItem value="html">HTML (Static)</SelectItem>
+                            <SelectItem value="nextjs">Next.js</SelectItem>
+                            <SelectItem value="vite">Vite</SelectItem>
+                            <SelectItem value="create-react-app">React App</SelectItem>
+                            <SelectItem value="astro">Astro</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-gray-200">Root Directory</Label>
+                        <Input
+                          value={rootDirectory}
+                          onChange={(e) => setRootDirectory(e.target.value)}
+                          placeholder="./"
+                          className="bg-gray-900 border-gray-700 text-white"
+                        />
+                      </div>
+
+                      <div className="space-y-4">
+                        <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Build & Output Settings</h4>
+
+                        <div className="space-y-2">
+                          <Label className="text-gray-200">Build Command</Label>
+                          <Input
+                            value={buildCommand}
+                            onChange={(e) => setBuildCommand(e.target.value)}
+                            placeholder="npm run build"
+                            className="bg-gray-900 border-gray-700 text-white"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-gray-200">Output Directory</Label>
+                          <Input
+                            value={outputDirectory}
+                            onChange={(e) => setOutputDirectory(e.target.value)}
+                            placeholder="dist"
+                            className="bg-gray-900 border-gray-700 text-white"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-gray-200">Install Command</Label>
+                          <Input
+                            value={installCommand}
+                            onChange={(e) => setInstallCommand(e.target.value)}
+                            placeholder="npm install"
+                            className="bg-gray-900 border-gray-700 text-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Environment Variables</h4>
+                          <Button
+                            onClick={() => setEnvVars([...envVars, { key: '', value: '' }])}
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs border-gray-700 text-gray-300 hover:text-white hover:bg-gray-800"
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Add
+                          </Button>
+                        </div>
+
+                        <div className="space-y-2">
+                          {envVars.map((env, index) => (
+                            <div key={index} className="flex gap-2">
+                              <Input
+                                value={env.key}
+                                onChange={(e) => {
+                                  const newEnvVars = [...envVars];
+                                  newEnvVars[index].key = e.target.value;
+                                  setEnvVars(newEnvVars);
+                                }}
+                                placeholder="EXAMPLE_KEY"
+                                className="flex-1 bg-gray-900 border-gray-700 text-white placeholder:text-gray-600"
+                              />
+                              <Input
+                                value={env.value}
+                                onChange={(e) => {
+                                  const newEnvVars = [...envVars];
+                                  newEnvVars[index].value = e.target.value;
+                                  setEnvVars(newEnvVars);
+                                }}
+                                placeholder="Value"
+                                className="flex-1 bg-gray-900 border-gray-700 text-white placeholder:text-gray-600"
+                              />
+                              <Button
+                                onClick={() => {
+                                  const newEnvVars = envVars.filter((_, i) => i !== index);
+                                  setEnvVars(newEnvVars);
+                                }}
+                                size="icon"
+                                variant="ghost"
+                                className="text-gray-500 hover:text-red-400 hover:bg-gray-900"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                          {envVars.length === 0 && (
+                            <p className="text-xs text-gray-600 italic">No environment variables added.</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <Button

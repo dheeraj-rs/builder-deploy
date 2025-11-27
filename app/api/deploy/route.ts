@@ -3,7 +3,19 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { projectId, projectName, htmlContent, cssContent, jsContent } = body;
+    const {
+      projectId,
+      projectName,
+      htmlContent,
+      cssContent,
+      jsContent,
+      framework,
+      rootDirectory,
+      buildCommand,
+      outputDirectory,
+      installCommand,
+      envVars,
+    } = body;
 
     const vercelToken = process.env.VERCEL_TOKEN;
 
@@ -37,7 +49,7 @@ export async function POST(request: NextRequest) {
       },
     ];
 
-    const deploymentPayload = {
+    const deploymentPayload: any = {
       name: projectName,
       files: files.map((f) => ({
         file: f.file,
@@ -45,10 +57,29 @@ export async function POST(request: NextRequest) {
         encoding: 'base64',
       })),
       projectSettings: {
-        framework: null,
+        framework: framework || null,
+        rootDirectory: rootDirectory || null,
+        buildCommand: buildCommand || null,
+        outputDirectory: outputDirectory || null,
+        installCommand: installCommand || null,
       },
       target: 'production',
     };
+
+    // Add environment variables if provided
+    if (envVars && Array.isArray(envVars) && envVars.length > 0) {
+      // Note: Vercel API v13 deployments endpoint might not support setting env vars directly for the project creation in the same call easily
+      // without creating the project first, but we can try passing it in 'env' property which some versions support for the build.
+      // Alternatively, we would need to create the project first.
+      // For this implementation, we will try passing it as 'env' object which is common for defining build envs.
+      const envObj: Record<string, string> = {};
+      envVars.forEach((e: any) => {
+        if (e.key && e.value) {
+          envObj[e.key] = e.value;
+        }
+      });
+      deploymentPayload.env = envObj;
+    }
 
     const deploymentResponse = await fetch(
       'https://api.vercel.com/v13/deployments',
