@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { supabase, type Project, type ChatMessage } from '@/lib/supabase';
 import { generateWebsiteCode, generateWebsitePlan } from '@/lib/gemini';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +9,30 @@ import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Send, Code, Eye, Sparkles, Rocket, Save, Home, MousePointer2, X } from 'lucide-react';
 import Link from 'next/link';
+
+type Project = {
+  _id: string;
+  user_id: string;
+  name: string;
+  description: string;
+  template_id?: string;
+  html_content: string;
+  css_content: string;
+  js_content: string;
+  status: string;
+  vercel_deployment_id?: string;
+  vercel_url?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type ChatMessage = {
+  _id: string;
+  project_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
+};
 
 function BuilderContent() {
   const searchParams = useSearchParams();
@@ -71,17 +94,12 @@ function BuilderContent() {
 
   const initializeProject = async () => {
     try {
-      // Public access - no user check required
-
       // Case 1: Load existing project
       if (projectId) {
-        const { data: existingProject, error: fetchError } = await supabase
-          .from('projects')
-          .select('*')
-          .eq('id', projectId)
-          .single();
+        const response = await fetch(`/api/projects/${projectId}`);
+        if (!response.ok) throw new Error('Failed to fetch project');
 
-        if (fetchError) throw fetchError;
+        const existingProject = await response.json();
 
         if (existingProject) {
           setProject(existingProject);
@@ -90,13 +108,9 @@ function BuilderContent() {
           setJsContent(existingProject.js_content || '');
 
           // Load chat history
-          const { data: chatHistory } = await supabase
-            .from('chat_messages')
-            .select('*')
-            .eq('project_id', projectId)
-            .order('created_at', { ascending: true });
-
-          if (chatHistory) {
+          const chatResponse = await fetch(`/api/chat?projectId=${projectId}`);
+          if (chatResponse.ok) {
+            const chatHistory = await chatResponse.json();
             setMessages(chatHistory);
           }
           return;
@@ -105,35 +119,36 @@ function BuilderContent() {
 
       // Case 2: Create from template
       if (templateId) {
-        const { data: template, error: templateError } = await supabase
-          .from('templates')
-          .select('*')
-          .eq('id', templateId)
-          .maybeSingle();
+        // We need to fetch templates first to find the one we want
+        // In a real app, we might want a specific endpoint for a single template
+        const templatesResponse = await fetch('/api/templates');
+        if (!templatesResponse.ok) throw new Error('Failed to fetch templates');
 
-        if (templateError) throw templateError;
+        const templates = await templatesResponse.json();
+        const template = templates.find((t: any) => t._id === templateId);
 
         if (template) {
           setHtmlContent(template.html_content);
           setCssContent(template.css_content);
           setJsContent(template.js_content || '');
 
-          const { data: newProject, error: createError } = await supabase
-            .from('projects')
-            .insert({
+          const createResponse = await fetch('/api/projects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
               user_id: crypto.randomUUID(), // Public project
               name: `${template.name} - Copy`,
               description: template.description,
-              template_id: template.id,
+              template_id: template._id,
               html_content: template.html_content,
               css_content: template.css_content,
               js_content: template.js_content || '',
               status: 'draft',
-            })
-            .select()
-            .single();
+            }),
+          });
 
-          if (createError) throw createError;
+          if (!createResponse.ok) throw new Error('Failed to create project');
+          const newProject = await createResponse.json();
 
           if (newProject) {
             setProject(newProject);
@@ -141,9 +156,10 @@ function BuilderContent() {
         }
       } else {
         // Case 3: Create new blank project
-        const { data: newProject, error: createError } = await supabase
-          .from('projects')
-          .insert({
+        const createResponse = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             user_id: crypto.randomUUID(), // Public project
             name: 'New Website',
             description: 'Created with AI',
@@ -151,11 +167,11 @@ function BuilderContent() {
             css_content: '',
             js_content: '',
             status: 'draft',
-          })
-          .select()
-          .single();
+          }),
+        });
 
-        if (createError) throw createError;
+        if (!createResponse.ok) throw new Error('Failed to create project');
+        const newProject = await createResponse.json();
 
         if (newProject) {
           setProject(newProject);
@@ -258,20 +274,35 @@ function BuilderContent() {
   const handleSendMessage = async () => {
     if (!input.trim() || !project || isGenerating) return;
 
-    const userMessage: Partial<ChatMessage> = {
-      project_id: project.id,
+    const userMessageContent = selectedElement
+      ? `[CONTEXT: User selected <${selectedElement.tagName}> element containing text "${selectedElement.text}"]\n${input}`
+      : input;
+
+    const userMessagePayload = {
+      project_id: project._id,
       role: 'user',
-      content: selectedElement
-        ? `[CONTEXT: User selected <${selectedElement.tagName}> element containing text "${selectedElement.text}"]\n${input}`
-        : input,
+      content: userMessageContent,
     };
 
-    setMessages([...messages, userMessage as ChatMessage]);
+    // Optimistic update
+    const tempUserMessage: ChatMessage = {
+      _id: crypto.randomUUID(),
+      project_id: project._id,
+      role: 'user',
+      content: userMessageContent,
+      created_at: new Date().toISOString(),
+    };
+
+    setMessages([...messages, tempUserMessage]);
     setInput('');
     setIsGenerating(true);
 
     try {
-      await supabase.from('chat_messages').insert(userMessage);
+      await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userMessagePayload),
+      });
 
       const conversationHistory = messages.map((msg) => ({
         role: msg.role,
@@ -291,33 +322,42 @@ function BuilderContent() {
       setCssContent(result.css);
       setJsContent(result.js);
 
-      await supabase
-        .from('projects')
-        .update({
+      await fetch(`/api/projects/${project._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           html_content: result.html,
           css_content: result.css,
           js_content: result.js,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', project.id);
+        }),
+      });
 
-      const assistantMessage: Partial<ChatMessage> = {
-        project_id: project.id,
+      const assistantMessagePayload = {
+        project_id: project._id,
         role: 'assistant',
         content: 'I have generated your website based on your requirements. You can see the preview on the right. Let me know if you would like any changes!',
       };
 
-      await supabase.from('chat_messages').insert(assistantMessage);
-      setMessages([...messages, userMessage as ChatMessage, assistantMessage as ChatMessage]);
+      const assistantResponse = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(assistantMessagePayload),
+      });
+
+      const assistantMessage = await assistantResponse.json();
+
+      setMessages((prev) => [...prev, assistantMessage]);
       setGenerationStatus('completed');
     } catch (error) {
       console.error('Error generating website:', error);
-      const errorMessage: Partial<ChatMessage> = {
-        project_id: project.id,
+      const errorMessage: ChatMessage = {
+        _id: crypto.randomUUID(),
+        project_id: project._id,
         role: 'assistant',
         content: 'Sorry, I encountered an error while generating your website. Please try again.',
+        created_at: new Date().toISOString(),
       };
-      setMessages([...messages, userMessage as ChatMessage, errorMessage as ChatMessage]);
+      setMessages((prev) => [...prev, errorMessage]);
       setGenerationStatus('idle');
     } finally {
       setIsGenerating(false);
@@ -327,23 +367,27 @@ function BuilderContent() {
 
   const handleDeploy = async () => {
     if (!project) return;
-    router.push(`/deploy/${project.id}`);
+    router.push(`/deploy/${project._id}`);
   };
 
   const handleSave = async () => {
     if (!project) return;
 
-    await supabase
-      .from('projects')
-      .update({
-        html_content: htmlContent,
-        css_content: cssContent,
-        js_content: jsContent,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', project.id);
-
-    alert('Project saved successfully!');
+    try {
+      await fetch(`/api/projects/${project._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          html_content: htmlContent,
+          css_content: cssContent,
+          js_content: jsContent,
+        }),
+      });
+      alert('Project saved successfully!');
+    } catch (error) {
+      console.error('Error saving project:', error);
+      alert('Failed to save project');
+    }
   };
 
   return (

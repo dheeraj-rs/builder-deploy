@@ -1,11 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase, type Template } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Sparkles, Zap, Globe, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+
+type Template = {
+  _id: string;
+  name: string;
+  description: string;
+  thumbnail_url: string;
+  is_active: boolean;
+};
 
 export default function Home() {
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -15,14 +22,14 @@ export default function Home() {
   }, []);
 
   const loadTemplates = async () => {
-    const { data, error } = await supabase
-      .from('templates')
-      .select('*')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false });
-
-    if (data) {
-      setTemplates(data);
+    try {
+      const response = await fetch('/api/templates');
+      if (response.ok) {
+        const data = await response.json();
+        setTemplates(data);
+      }
+    } catch (error) {
+      console.error('Error loading templates:', error);
     }
   };
 
@@ -130,7 +137,7 @@ export default function Home() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {templates.map((template) => (
-              <Card key={template.id} className="overflow-hidden hover:shadow-xl transition-shadow group">
+              <Card key={template._id} className="overflow-hidden hover:shadow-xl transition-shadow group">
                 <div className="aspect-video relative overflow-hidden bg-slate-100">
                   <img
                     src={template.thumbnail_url}
@@ -138,7 +145,7 @@ export default function Home() {
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                    <Link href={`/builder?template=${template.id}`} className="w-full">
+                    <Link href={`/builder?template=${template._id}`} className="w-full">
                       <Button className="w-full" variant="secondary">
                         Use This Template
                       </Button>

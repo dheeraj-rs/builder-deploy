@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { supabase, type Project } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,6 +10,22 @@ import { Loader2, Rocket, ExternalLink, ArrowLeft, CheckCircle2, XCircle, Globe,
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import Link from 'next/link';
+
+type Project = {
+  _id: string;
+  user_id: string;
+  name: string;
+  description: string;
+  template_id?: string;
+  html_content: string;
+  css_content: string;
+  js_content: string;
+  status: string;
+  vercel_deployment_id?: string;
+  vercel_url?: string;
+  created_at: string;
+  updated_at: string;
+};
 
 const DEPLOYMENT_STEPS = [
   { id: 1, label: 'Initiating deployment...', duration: 1000 },
@@ -50,17 +65,17 @@ export default function DeployPage() {
   }, [projectId]);
 
   const loadProject = async () => {
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('id', projectId)
-      .maybeSingle();
-
-    if (data) {
-      setProject(data);
-      // Ensure unique project name by appending random string if needed, or just use timestamp
-      const uniqueSuffix = Math.random().toString(36).substring(2, 7);
-      setProjectName(`${data.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${uniqueSuffix}`);
+    try {
+      const response = await fetch(`/api/projects/${projectId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setProject(data);
+        // Ensure unique project name by appending random string if needed, or just use timestamp
+        const uniqueSuffix = Math.random().toString(36).substring(2, 7);
+        setProjectName(`${data.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${uniqueSuffix}`);
+      }
+    } catch (error) {
+      console.error('Error loading project:', error);
     }
   };
 
@@ -98,22 +113,26 @@ export default function DeployPage() {
               setDeploymentUrl(data.url);
               setIsDeploying(false);
 
-              // Update Supabase with final status
-              await supabase
-                .from('projects')
-                .update({
+              // Update Project with final status
+              await fetch(`/api/projects/${projectId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
                   vercel_url: data.url,
                   status: 'deployed',
-                })
-                .eq('id', projectId);
+                }),
+              });
 
-              await supabase
-                .from('deployments')
-                .update({
+              // Update Deployment with final status
+              await fetch('/api/deployments', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  vercel_deployment_id: deploymentId,
                   url: data.url,
                   status: 'success',
-                })
-                .eq('vercel_deployment_id', deploymentId);
+                }),
+              });
             }, 2000); // 2 second delay to let user see the checkmarks
 
           } else if (data.status === 'ERROR' || data.status === 'CANCELED') {
@@ -150,7 +169,7 @@ export default function DeployPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          projectId: project.id,
+          projectId: project._id,
           projectName,
           htmlContent: project.html_content,
           cssContent: project.css_content,
@@ -169,23 +188,26 @@ export default function DeployPage() {
 
       if (response.ok && result.success) {
         // Update project with initial Vercel deployment ID
-        await supabase
-          .from('projects')
-          .update({
+        await fetch(`/api/projects/${project._id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             vercel_deployment_id: result.deploymentId,
             status: 'deploying',
-          })
-          .eq('id', project.id);
+          }),
+        });
 
         // Insert initial deployment record
-        await supabase
-          .from('deployments')
-          .insert({
-            project_id: project.id,
+        await fetch('/api/deployments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_id: project._id,
             vercel_deployment_id: result.deploymentId,
             url: result.url, // Initial URL
             status: 'deploying', // Initial status
-          });
+          }),
+        });
 
         // Start polling for completion
         await pollDeploymentStatus(result.deploymentId);
@@ -201,13 +223,17 @@ export default function DeployPage() {
       setDeploymentStatus('error');
       setErrorMessage(error.message || 'An error occurred during deployment');
 
-      await supabase
-        .from('deployments')
-        .insert({
-          project_id: project.id,
+      await fetch('/api/deployments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: project._id,
+          vercel_deployment_id: 'error-' + Date.now(), // Placeholder ID for failed deployment
+          url: '',
           status: 'error',
           error_message: error.message,
-        });
+        }),
+      });
       setIsDeploying(false);
     }
   };

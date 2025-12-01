@@ -2,28 +2,47 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase, type Project } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Sparkles, Plus, ExternalLink, Edit, Trash2, Globe } from 'lucide-react';
 import Link from 'next/link';
 
+type Project = {
+  _id: string;
+  user_id: string;
+  name: string;
+  description: string;
+  template_id?: string;
+  html_content: string;
+  css_content: string;
+  js_content: string;
+  status: string;
+  vercel_deployment_id?: string;
+  vercel_url?: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadProjects();
   }, []);
 
   const loadProjects = async () => {
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .order('updated_at', { ascending: false });
-
-    if (data) {
-      setProjects(data);
+    try {
+      const response = await fetch('/api/projects');
+      if (response.ok) {
+        const data = await response.json();
+        setProjects(data);
+      }
+    } catch (error) {
+      console.error('Error loading projects:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -32,8 +51,20 @@ export default function DashboardPage() {
       return;
     }
 
-    await supabase.from('projects').delete().eq('id', projectId);
-    loadProjects();
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        loadProjects();
+      } else {
+        alert('Failed to delete project');
+      }
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      alert('An error occurred while deleting the project');
+    }
   };
 
 
@@ -70,7 +101,9 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {projects.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center py-12">Loading projects...</div>
+        ) : projects.length === 0 ? (
           <Card className="py-12">
             <CardContent className="text-center">
               <Sparkles className="h-16 w-16 text-slate-300 mx-auto mb-4" />
@@ -89,7 +122,7 @@ export default function DashboardPage() {
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {projects.map((project) => (
-              <Card key={project.id} className="hover:shadow-lg transition-shadow">
+              <Card key={project._id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -123,7 +156,7 @@ export default function DashboardPage() {
                       </a>
                     )}
                     <div className="flex gap-2 pt-2">
-                      <Link href={`/builder?project=${project.id}`} className="flex-1">
+                      <Link href={`/builder?project=${project._id}`} className="flex-1">
                         <Button variant="outline" className="w-full">
                           <Edit className="mr-2 h-4 w-4" />
                           Edit
@@ -132,7 +165,7 @@ export default function DashboardPage() {
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => handleDelete(project.id)}
+                        onClick={() => handleDelete(project._id)}
                         className="text-red-600 hover:text-red-700"
                       >
                         <Trash2 className="h-4 w-4" />
