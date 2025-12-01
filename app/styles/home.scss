@@ -1,0 +1,244 @@
+@import 'variables';
+@import 'mixins';
+
+.home-container {
+  min-height: 100vh;
+  background: linear-gradient(to bottom right, #f8fafc, #eff6ff, #f1f5f9);
+}
+
+.navbar {
+  border-bottom: 1px solid $border;
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(4px);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+
+  &__content {
+    @include container;
+    @include flex-between;
+    height: 4rem;
+  }
+
+  &__brand {
+    @include flex-center;
+    gap: 0.5rem;
+
+    span {
+      font-size: 1.25rem;
+      font-weight: 700;
+      background: linear-gradient(to right, #2563eb, #0891b2);
+      -webkit-background-clip: text;
+      color: transparent;
+    }
+  }
+}
+
+.hero-section {
+  padding: 5rem 1rem;
+  text-align: center;
+
+  &__content {
+    max-width: 72rem;
+    margin: 0 auto;
+  }
+
+  &__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: #dbeafe;
+    color: #1d4ed8;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 1.5rem;
+  }
+
+  &__title {
+    font-size: 3rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    background: linear-gradient(to right, #0f172a, #1e40af, #0f172a);
+    -webkit-background-clip: text;
+    color: transparent;
+    line-height: 1.2;
+
+    @media (min-width: $md) {
+      font-size: 4.5rem;
+    }
+  }
+
+  &__description {
+    font-size: 1.25rem;
+    color: $muted-foreground;
+    margin-bottom: 2rem;
+    max-width: 42rem;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
+
+.features-section {
+  padding: 4rem 1rem;
+
+  &__grid {
+    @include container;
+    display: grid;
+    gap: 2rem;
+
+    @media (min-width: $md) {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .feature-card {
+    border: 2px solid $border;
+    transition: border-color 0.2s;
+
+    &:hover {
+      border-color: #93c5fd;
+    }
+
+    &__icon {
+      height: 3rem;
+      width: 3rem;
+      border-radius: $radius;
+      @include flex-center;
+      margin-bottom: 1rem;
+
+      &--blue {
+        background-color: #dbeafe;
+        color: #2563eb;
+      }
+      &--green {
+        background-color: #dcfce7;
+        color: #16a34a;
+      }
+      &--purple {
+        background-color: #f3e8ff;
+        color: #9333ea;
+      }
+    }
+  }
+}
+
+.templates-section {
+  padding: 5rem 1rem;
+  background-color: $background;
+
+  &__header {
+    @include container;
+    text-align: center;
+    margin-bottom: 3rem;
+
+    h2 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+    p {
+      font-size: 1.25rem;
+      color: $muted-foreground;
+    }
+  }
+
+  &__grid {
+    @include container;
+    display: grid;
+    gap: 2rem;
+
+    @media (min-width: $md) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    @media (min-width: $lg) {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .template-card {
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+
+    &:hover {
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+        0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+      .template-card__image {
+        transform: scale(1.05);
+      }
+
+      .template-card__overlay {
+        opacity: 1;
+      }
+    }
+
+    &__image-wrapper {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      background-color: $secondary;
+    }
+
+    &__image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.3s;
+    }
+
+    &__overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent);
+      opacity: 0;
+      transition: opacity 0.2s;
+      display: flex;
+      align-items: flex-end;
+      padding: 1rem;
+    }
+  }
+}
+
+.cta-section {
+  padding: 5rem 1rem;
+  background: linear-gradient(to right, #2563eb, #0891b2);
+  color: white;
+
+  &__content {
+    max-width: 56rem;
+    margin: 0 auto;
+    text-align: center;
+
+    h2 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+    }
+    p {
+      font-size: 1.25rem;
+      margin-bottom: 2rem;
+      opacity: 0.9;
+    }
+  }
+}
+
+.footer {
+  border-top: 1px solid $border;
+  background-color: $background;
+  padding: 2rem 1rem;
+
+  &__content {
+    @include container;
+    text-align: center;
+    color: $muted-foreground;
+  }
+}

@@ -1,0 +1,158 @@
+@import 'variables';
+@import 'mixins';
+
+.dashboard-container {
+  min-height: 100vh;
+  background: linear-gradient(to bottom right, #f8fafc, #eff6ff);
+}
+
+.dashboard-nav {
+  border-bottom: 1px solid $border;
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(4px);
+
+  &__content {
+    @include container;
+    @include flex-between;
+    height: 4rem;
+  }
+
+  &__brand {
+    @include flex-center;
+    gap: 0.5rem;
+
+    span {
+      font-size: 1.25rem;
+      font-weight: 700;
+      background: linear-gradient(to right, #2563eb, #0891b2);
+      -webkit-background-clip: text;
+      color: transparent;
+    }
+  }
+}
+
+.dashboard-content {
+  @include container;
+  padding-top: 3rem;
+  padding-bottom: 3rem;
+}
+
+.dashboard-header {
+  @include flex-between;
+  margin-bottom: 2rem;
+
+  h1 {
+    font-size: 2.25rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  p {
+    color: $muted-foreground;
+  }
+}
+
+.empty-state {
+  padding: 3rem;
+  text-align: center;
+
+  &__icon {
+    height: 4rem;
+    width: 4rem;
+    color: #cbd5e1;
+    margin: 0 auto 1rem;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  p {
+    color: $muted-foreground;
+    margin-bottom: 1.5rem;
+  }
+}
+
+.projects-grid {
+  display: grid;
+  gap: 1.5rem;
+
+  @media (min-width: $md) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  @media (min-width: $lg) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.project-card {
+  transition: box-shadow 0.2s;
+
+  &:hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+      0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+
+  &__header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  &__info {
+    flex: 1;
+  }
+
+  &__title {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  &__description {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-top: 0.25rem;
+  }
+
+  &__status {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 9999px;
+    margin-left: 0.5rem;
+
+    &--deployed {
+      background-color: #dcfce7;
+      color: #15803d;
+    }
+
+    &--draft {
+      background-color: #f1f5f9;
+      color: #334155;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    gap: 0.5rem;
+    padding-top: 0.5rem;
+  }
+
+  &__link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: #2563eb;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}

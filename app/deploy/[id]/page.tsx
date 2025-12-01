@@ -1,34 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Loader2, Rocket, ExternalLink, ArrowLeft, CheckCircle2, XCircle, Globe, GitBranch, Clock, Terminal, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import '@/app/styles/deploy.scss';
 
 // --- UI Components ---
 
 const Button = ({ className, variant = "default", size = "default", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link", size?: "default" | "sm" | "lg" | "icon" }) => {
-  const variants = {
-    default: "bg-slate-900 text-slate-50 hover:bg-slate-900/90",
-    destructive: "bg-red-500 text-slate-50 hover:bg-red-500/90",
-    outline: "border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-900",
-    secondary: "bg-slate-100 text-slate-900 hover:bg-slate-100/80",
-    ghost: "hover:bg-slate-100 hover:text-slate-900",
-    link: "text-slate-900 underline-offset-4 hover:underline",
-  };
-  const sizes = {
-    default: "h-10 px-4 py-2",
-    sm: "h-9 rounded-md px-3",
-    lg: "h-11 rounded-md px-8",
-    icon: "h-10 w-10",
-  };
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-        variants[variant],
-        sizes[size],
+        "btn",
+        `btn--${variant}`,
+        `btn--size-${size}`,
         className
       )}
       {...props}
@@ -40,50 +27,57 @@ const Input = ({ className, type, ...props }: React.InputHTMLAttributes<HTMLInpu
   return (
     <input
       type={type}
-      className={cn(
-        "flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-        className
-      )}
+      className={cn("input", className)}
       {...props}
     />
   );
 };
 
 const Label = ({ className, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
-  <label className={cn("text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70", className)} {...props} />
+  <label className={cn("label", className)} {...props} />
 );
 
 const Card = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("rounded-lg border border-slate-200 bg-white text-slate-950 shadow-sm", className)} {...props} />
+  <div className={cn("card", className)} {...props} />
 );
 
 const CardHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("flex flex-col space-y-1.5 p-6", className)} {...props} />
+  <div className={cn("card__header", className)} {...props} />
 );
 
 const CardTitle = ({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (
-  <h3 className={cn("text-2xl font-semibold leading-none tracking-tight", className)} {...props} />
+  <h3 className={cn("card__title", className)} {...props} />
 );
 
 const CardDescription = ({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) => (
-  <p className={cn("text-sm text-slate-500", className)} {...props} />
+  <p className={cn("card__description", className)} {...props} />
 );
 
 const CardContent = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("p-6 pt-0", className)} {...props} />
+  <div className={cn("card__content", className)} {...props} />
 );
 
-const Switch = ({ checked, onCheckedChange, id, ...props }: { checked: boolean; onCheckedChange: (c: boolean) => void; id?: string } & React.HTMLAttributes<HTMLButtonElement>) => (
+const Switch = ({ checked, onCheckedChange, id, className, ...props }: { checked: boolean; onCheckedChange: (c: boolean) => void; id?: string; className?: string } & React.HTMLAttributes<HTMLButtonElement>) => (
   <button
     type="button"
     role="switch"
     id={id}
     aria-checked={checked}
     onClick={() => onCheckedChange(!checked)}
-    className={cn("peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-50", checked ? "bg-slate-900" : "bg-slate-200")}
+    className={cn(
+      "switch",
+      checked ? "switch--checked" : "switch--unchecked",
+      className
+    )}
+    data-state={checked ? "checked" : "unchecked"}
     {...props}
   >
-    <span className={cn("pointer-events-none block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform", checked ? "translate-x-5" : "translate-x-0")} />
+    <span
+      className={cn(
+        "switch__thumb",
+        checked && "switch__thumb--checked"
+      )}
+    />
   </button>
 );
 
@@ -138,11 +132,7 @@ export default function DeployPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [progress, setProgress] = useState(0);
 
-  useEffect(() => {
-    loadProject();
-  }, [projectId]);
-
-  const loadProject = async () => {
+  const loadProject = useCallback(async () => {
     try {
       const response = await fetch(`/api/projects/${projectId}`);
       if (response.ok) {
@@ -155,7 +145,11 @@ export default function DeployPage() {
     } catch (error) {
       console.error('Error loading project:', error);
     }
-  };
+  }, [projectId]);
+
+  useEffect(() => {
+    loadProject();
+  }, [projectId, loadProject]);
 
   const pollDeploymentStatus = async (deploymentId: string) => {
     const pollInterval = setInterval(async () => {
@@ -318,27 +312,27 @@ export default function DeployPage() {
 
   if (!project) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="deploy-loading">
+        <Loader2 className="loader-icon" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <nav className="border-b border-gray-800 bg-black">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-4">
-              <div className="h-8 w-8 bg-white rounded-full flex items-center justify-center">
+    <div className="deploy-container">
+      <nav className="deploy-nav">
+        <div className="deploy-nav__content">
+          <div className="deploy-nav__wrapper">
+            <div className="deploy-nav__brand">
+              <div className="deploy-nav__brand-logo">
                 <svg height="16" viewBox="0 0 116 100" fill="#000" xmlns="http://www.w3.org/2000/svg">
                   <path fillRule="evenodd" clipRule="evenodd" d="M57.5 0L115 100H0L57.5 0Z" />
                 </svg>
               </div>
-              <span className="font-semibold text-lg">{project.name}</span>
+              <span className="deploy-nav__brand-name">{project.name}</span>
             </div>
             <Link href={`/builder?project=${projectId}`}>
-              <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-gray-800">
+              <Button variant="ghost" className="deploy-nav__back-btn">
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Editor
               </Button>
@@ -347,76 +341,76 @@ export default function DeployPage() {
         </div>
       </nav>
 
-      <div className="max-w-6xl mx-auto px-4 py-12">
+      <div className="deploy-content">
 
         {deploymentStatus === 'idle' && (
           <div className="max-w-2xl mx-auto">
-            <div className="text-center mb-12">
-              <h1 className="text-4xl font-bold mb-4">Deploy to Vercel</h1>
-              <p className="text-gray-400 text-lg">
+            <div className="deploy-header">
+              <h1>Deploy to Vercel</h1>
+              <p>
                 Deploy your website to a global edge network with a single click.
               </p>
             </div>
-            <Card className="bg-gray-900 border-gray-800 text-white">
+            <Card className="config-card">
               <CardHeader>
                 <CardTitle>Deployment Configuration</CardTitle>
-                <CardDescription className="text-gray-400">
+                <CardDescription className="config-card__description">
                   Configure your project settings
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="config-card__content">
                 <div className="space-y-2">
-                  <Label htmlFor="projectName" className="text-gray-200">Project Name</Label>
+                  <Label htmlFor="projectName" className="deploy-label">Project Name</Label>
                   <div className="flex gap-2">
                     <Input
                       id="projectName"
                       value={projectName}
                       onChange={(e) => setProjectName(e.target.value)}
                       placeholder="my-awesome-website"
-                      className="bg-black border-gray-700 text-white placeholder:text-gray-600"
+                      className="deploy-input"
                     />
-                    <div className="flex items-center px-3 bg-gray-800 border border-gray-700 rounded-md text-gray-400 text-sm">
+                    <div className="deploy-input-suffix">
                       .vercel.app
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-gray-200">Project Stats</Label>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="p-4 bg-black border border-gray-800 rounded-lg text-center">
-                      <div className="text-2xl font-bold text-blue-500">{project.html_content.length}</div>
-                      <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">HTML Chars</div>
+                  <Label className="deploy-label">Project Stats</Label>
+                  <div className="stats-grid">
+                    <div className="stat-card">
+                      <div className="stat-card__value stat-card__value--blue">{project.html_content.length}</div>
+                      <div className="stat-card__label">HTML Chars</div>
                     </div>
-                    <div className="p-4 bg-black border border-gray-800 rounded-lg text-center">
-                      <div className="text-2xl font-bold text-pink-500">{project.css_content.length}</div>
-                      <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">CSS Chars</div>
+                    <div className="stat-card">
+                      <div className="stat-card__value stat-card__value--pink">{project.css_content.length}</div>
+                      <div className="stat-card__label">CSS Chars</div>
                     </div>
-                    <div className="p-4 bg-black border border-gray-800 rounded-lg text-center">
-                      <div className="text-2xl font-bold text-yellow-500">{project.js_content?.length || 0}</div>
-                      <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">JS Chars</div>
+                    <div className="stat-card">
+                      <div className="stat-card__value stat-card__value--yellow">{project.js_content?.length || 0}</div>
+                      <div className="stat-card__label">JS Chars</div>
                     </div>
                   </div>
                 </div>
 
-                <div className="border border-gray-800 rounded-lg overflow-hidden">
-                  <div className="flex items-center justify-between p-4 bg-gray-900">
+                <div className="advanced-config">
+                  <div className="advanced-config__header">
                     <div className="flex items-center gap-3">
                       <Switch
                         checked={showAdvanced}
                         onCheckedChange={setShowAdvanced}
                         id="advanced-mode"
                       />
-                      <Label htmlFor="advanced-mode" className="font-medium text-gray-200 cursor-pointer">
+                      <Label htmlFor="advanced-mode" className="deploy-label deploy-label--pointer">
                         Enable Advanced Configuration
                       </Label>
                     </div>
                   </div>
 
                   {showAdvanced && (
-                    <div className="p-4 space-y-6 bg-black border-t border-gray-800">
+                    <div className="advanced-config__content">
                       <div className="space-y-2">
-                        <Label className="text-gray-200">Framework Preset</Label>
+                        <Label className="deploy-label">Framework Preset</Label>
                         <div className="relative">
                           <select
                             value={framework}
@@ -454,7 +448,7 @@ export default function DeployPage() {
                                   break;
                               }
                             }}
-                            className="flex h-10 w-full items-center justify-between rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white ring-offset-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+                            className="deploy-select"
                           >
                             <option value="html">HTML (Static)</option>
                             <option value="nextjs">Next.js</option>
@@ -463,62 +457,62 @@ export default function DeployPage() {
                             <option value="astro">Astro</option>
                             <option value="other">Other</option>
                           </select>
-                          <ChevronDown className="absolute right-3 top-3 h-4 w-4 opacity-50 pointer-events-none" />
+                          <ChevronDown className="deploy-select-icon" />
                         </div>
                       </div>
 
                       <div className="space-y-2">
-                        <Label className="text-gray-200">Root Directory</Label>
+                        <Label className="deploy-label">Root Directory</Label>
                         <Input
                           value={rootDirectory}
                           onChange={(e) => setRootDirectory(e.target.value)}
                           placeholder="./"
-                          className="bg-gray-900 border-gray-700 text-white"
+                          className="deploy-input"
                         />
                       </div>
 
                       <div className="space-y-4">
-                        <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Build & Output Settings</h4>
+                        <h4 className="deploy-section-title">Build & Output Settings</h4>
 
                         <div className="space-y-2">
-                          <Label className="text-gray-200">Build Command</Label>
+                          <Label className="deploy-label">Build Command</Label>
                           <Input
                             value={buildCommand}
                             onChange={(e) => setBuildCommand(e.target.value)}
                             placeholder="npm run build"
-                            className="bg-gray-900 border-gray-700 text-white"
+                            className="deploy-input"
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-gray-200">Output Directory</Label>
+                          <Label className="deploy-label">Output Directory</Label>
                           <Input
                             value={outputDirectory}
                             onChange={(e) => setOutputDirectory(e.target.value)}
                             placeholder="dist"
-                            className="bg-gray-900 border-gray-700 text-white"
+                            className="deploy-input"
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-gray-200">Install Command</Label>
+                          <Label className="deploy-label">Install Command</Label>
                           <Input
                             value={installCommand}
                             onChange={(e) => setInstallCommand(e.target.value)}
                             placeholder="npm install"
-                            className="bg-gray-900 border-gray-700 text-white"
+                            className="deploy-input"
                           />
                         </div>
                       </div>
 
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                          <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Environment Variables</h4>
+                          <h4 className="deploy-section-title">Environment Variables</h4>
                           <Button
                             onClick={() => setEnvVars([...envVars, { key: '', value: '' }])}
                             size="sm"
                             variant="outline"
-                            className="h-7 text-xs border-gray-700 text-gray-300 hover:text-white hover:bg-gray-800"
+                            className="deploy-add-btn"
                           >
                             <Plus className="h-3 w-3 mr-1" />
                             Add
@@ -536,7 +530,7 @@ export default function DeployPage() {
                                   setEnvVars(newEnvVars);
                                 }}
                                 placeholder="EXAMPLE_KEY"
-                                className="flex-1 bg-gray-900 border-gray-700 text-white placeholder:text-gray-600"
+                                className="deploy-input flex-1"
                               />
                               <Input
                                 value={env.value}
@@ -546,7 +540,7 @@ export default function DeployPage() {
                                   setEnvVars(newEnvVars);
                                 }}
                                 placeholder="Value"
-                                className="flex-1 bg-gray-900 border-gray-700 text-white placeholder:text-gray-600"
+                                className="deploy-input flex-1"
                               />
                               <Button
                                 onClick={() => {
@@ -555,14 +549,14 @@ export default function DeployPage() {
                                 }}
                                 size="icon"
                                 variant="ghost"
-                                className="text-gray-500 hover:text-red-400 hover:bg-gray-900"
+                                className="deploy-remove-btn"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
                           ))}
                           {envVars.length === 0 && (
-                            <p className="text-xs text-gray-600 italic">No environment variables added.</p>
+                            <p className="deploy-empty-text">No environment variables added.</p>
                           )}
                         </div>
                       </div>
@@ -573,7 +567,7 @@ export default function DeployPage() {
                 <Button
                   onClick={handleDeploy}
                   disabled={!projectName || isDeploying}
-                  className="w-full bg-white text-black hover:bg-gray-200 font-medium"
+                  className="deploy-submit-btn"
                   size="lg"
                 >
                   {isDeploying ? 'Deploying...' : 'Deploy'}
@@ -584,28 +578,28 @@ export default function DeployPage() {
         )}
 
         {deploymentStatus === 'deploying' && (
-          <div className="max-w-2xl mx-auto text-center pt-12">
-            <div className="mb-8 relative">
-              <div className="h-32 w-32 mx-auto bg-gray-900 rounded-full flex items-center justify-center relative z-10 border-4 border-gray-800">
-                <Loader2 className="h-12 w-12 animate-spin text-white" />
+          <div className="deployment-progress">
+            <div className="deployment-progress__loader">
+              <div className="deployment-progress__loader-circle">
+                <Loader2 className="deployment-progress__loader-icon" />
               </div>
-              <div className="absolute top-1/2 left-0 w-full h-0.5 bg-gray-800 -z-0"></div>
+              <div className="deployment-progress__loader-line"></div>
             </div>
 
             <h2 className="text-2xl font-bold mb-2">Deploying to Vercel</h2>
             <p className="text-gray-400 mb-8">Please wait while we build and deploy your application.</p>
 
-            <div className="max-w-md mx-auto bg-gray-900 rounded-lg border border-gray-800 p-6 text-left">
+            <div className="deployment-progress__steps">
               <div className="space-y-4">
                 {DEPLOYMENT_STEPS.map((step) => (
-                  <div key={step.id} className="flex items-center gap-3">
-                    <div className={`h-5 w-5 rounded-full flex items-center justify-center border ${currentStep > step.id ? 'bg-blue-500 border-blue-500' :
-                      currentStep === step.id ? 'border-blue-500' : 'border-gray-700'
+                  <div key={step.id} className="deployment-progress__step">
+                    <div className={`deployment-progress__step-icon ${currentStep > step.id ? 'deployment-progress__step-icon--completed' :
+                      currentStep === step.id ? 'deployment-progress__step-icon--active' : 'deployment-progress__step-icon--pending'
                       }`}>
-                      {currentStep > step.id && <CheckCircle2 className="h-3 w-3 text-black" />}
-                      {currentStep === step.id && <div className="h-2 w-2 bg-blue-500 rounded-full animate-pulse" />}
+                      {currentStep > step.id && <CheckCircle2 className="deployment-progress__step-check" />}
+                      {currentStep === step.id && <div className="deployment-progress__step-dot" />}
                     </div>
-                    <span className={`${currentStep >= step.id ? 'text-gray-200' : 'text-gray-600'
+                    <span className={`deployment-progress__step-label ${currentStep >= step.id ? 'deployment-progress__step-label--active' : 'deployment-progress__step-label--pending'
                       }`}>{step.label}</span>
                   </div>
                 ))}
@@ -624,96 +618,94 @@ export default function DeployPage() {
         )}
 
         {deploymentStatus === 'success' && (
-          <div className="max-w-5xl mx-auto">
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold mb-2">Production Deployment</h1>
-              <p className="text-gray-400">The deployment has been successfully created.</p>
+          <div className="success-view">
+            <div className="success-view__header">
+              <h1>Production Deployment</h1>
+              <p>The deployment has been successfully created.</p>
             </div>
 
-            <div className="bg-black border border-gray-800 rounded-lg overflow-hidden">
-              <div className="grid grid-cols-1 lg:grid-cols-3">
-                {/* Preview Section */}
-                <div className="lg:col-span-2 p-8 border-b lg:border-b-0 lg:border-r border-gray-800 bg-gray-900/30 flex flex-col items-center justify-center min-h-[400px]">
-                  <div className="w-full max-w-md bg-white rounded-lg shadow-2xl overflow-hidden transform transition-all hover:scale-[1.02] duration-500">
-                    <div className="h-6 bg-gray-100 border-b flex items-center px-2 gap-1">
-                      <div className="h-2 w-2 rounded-full bg-red-400"></div>
-                      <div className="h-2 w-2 rounded-full bg-yellow-400"></div>
-                      <div className="h-2 w-2 rounded-full bg-green-400"></div>
+            <div className="success-view__grid">
+              {/* Preview Section */}
+              <div className="success-view__preview">
+                <div className="success-view__preview-card">
+                  <div className="success-view__preview-header">
+                    <div className="success-view__preview-dot success-view__preview-dot--red"></div>
+                    <div className="success-view__preview-dot success-view__preview-dot--yellow"></div>
+                    <div className="success-view__preview-dot success-view__preview-dot--green"></div>
+                  </div>
+                  <div className="success-view__preview-content">
+                    <div className="success-view__preview-empty">
+                      <Globe className="success-view__preview-icon" />
+                      <p>Preview not available</p>
                     </div>
-                    <div className="aspect-video bg-white flex items-center justify-center text-gray-400">
-                      <div className="text-center p-8">
-                        <Globe className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                        <p className="text-sm">Preview not available</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Details Section */}
+              <div className="success-view__details">
+                <div>
+                  <h3 className="success-view__subtitle">Deployment Details</h3>
+
+                  <div className="success-view__info-grid">
+                    <div className="success-view__info-item">
+                      <Label className="success-view__label">Deployment</Label>
+                      <a href={deploymentUrl} target="_blank" rel="noopener noreferrer" className="success-view__link">
+                        {deploymentUrl.replace('https://', '')}
+                      </a>
+                    </div>
+
+                    <div className="success-view__info-item">
+                      <Label className="success-view__label">Domains</Label>
+                      <div className="success-view__domain-row">
+                        <a href={deploymentUrl} target="_blank" rel="noopener noreferrer" className="success-view__domain-link">
+                          {deploymentUrl.replace('https://', '')}
+                        </a>
+                        <ExternalLink className="success-view__link-icon" />
+                      </div>
+                    </div>
+
+                    <div className="success-view__stats-row">
+                      <div className="success-view__info-item">
+                        <Label className="success-view__label">Status</Label>
+                        <div className="success-view__status-row">
+                          <div className="success-view__status-dot"></div>
+                          <span className="success-view__status-text">Ready</span>
+                        </div>
+                      </div>
+                      <div className="success-view__info-item">
+                        <Label className="success-view__label">Created</Label>
+                        <div className="success-view__created-text">Just now</div>
+                      </div>
+                    </div>
+
+                    <div className="success-view__info-item">
+                      <Label className="success-view__label">Source</Label>
+                      <div className="success-view__source-row">
+                        <GitBranch className="success-view__source-icon" />
+                        <span>main</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Details Section */}
-                <div className="p-6 space-y-8">
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-500 mb-4 uppercase tracking-wider">Deployment Details</h3>
-
-                    <div className="space-y-4">
-                      <div>
-                        <Label className="text-gray-500 text-xs">Deployment</Label>
-                        <a href={deploymentUrl} target="_blank" rel="noopener noreferrer" className="block text-blue-400 hover:underline truncate font-mono text-sm mt-1">
-                          {deploymentUrl.replace('https://', '')}
-                        </a>
-                      </div>
-
-                      <div>
-                        <Label className="text-gray-500 text-xs">Domains</Label>
-                        <div className="flex items-center gap-2 mt-1">
-                          <a href={deploymentUrl} target="_blank" rel="noopener noreferrer" className="text-white hover:underline text-sm font-medium">
-                            {deploymentUrl.replace('https://', '')}
-                          </a>
-                          <ExternalLink className="h-3 w-3 text-gray-500" />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-gray-500 text-xs">Status</Label>
-                          <div className="flex items-center gap-2 mt-1">
-                            <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                            <span className="text-white text-sm">Ready</span>
-                          </div>
-                        </div>
-                        <div>
-                          <Label className="text-gray-500 text-xs">Created</Label>
-                          <div className="text-white text-sm mt-1">Just now</div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <Label className="text-gray-500 text-xs">Source</Label>
-                        <div className="flex items-center gap-2 mt-1 text-white text-sm">
-                          <GitBranch className="h-4 w-4 text-gray-500" />
-                          <span>main</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pt-6 border-t border-gray-800 space-y-3">
-                    <a href={deploymentUrl} target="_blank" rel="noopener noreferrer" className="block">
-                      <Button className="w-full bg-white text-black hover:bg-gray-200">
-                        Visit
-                      </Button>
-                    </a>
-                    <Link href="/dashboard" className="block">
-                      <Button variant="outline" className="w-full border-gray-700 text-white hover:bg-gray-800 hover:text-white">
-                        Go to Dashboard
-                      </Button>
-                    </Link>
-                  </div>
+                <div className="success-view__actions">
+                  <a href={deploymentUrl} target="_blank" rel="noopener noreferrer" className="block">
+                    <Button className="success-view__visit-btn">
+                      Visit
+                    </Button>
+                  </a>
+                  <Link href="/dashboard" className="block">
+                    <Button variant="outline" className="success-view__dashboard-btn">
+                      Go to Dashboard
+                    </Button>
+                  </Link>
                 </div>
               </div>
             </div>
 
-            <div className="mt-8 bg-gray-900 border border-gray-800 rounded-lg p-4">
-              <div className="flex items-center gap-3 text-sm text-gray-400 font-mono">
+            <div className="success-view__cli-hint">
+              <div className="success-view__cli-content">
                 <Terminal className="h-4 w-4" />
                 <span>To deploy to Production, run </span>
                 <span className="text-white">vercel --prod</span>
@@ -724,38 +716,32 @@ export default function DeployPage() {
         )}
 
         {deploymentStatus === 'error' && (
-          <Card className="border-red-900 bg-red-950/20 max-w-2xl mx-auto">
-            <CardContent className="py-12">
-              <div className="text-center">
-                <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold mb-2 text-red-500">
-                  Deployment Failed
-                </h2>
-                <p className="text-red-400 mb-4">
-                  We encountered an error while deploying your website
-                </p>
-                {errorMessage && (
-                  <div className="bg-black/50 rounded-lg p-4 mb-6 border border-red-900/50">
-                    <p className="text-sm text-red-400 font-mono">{errorMessage}</p>
-                  </div>
-                )}
-                <div className="flex gap-4 justify-center">
-                  <Button
-                    onClick={() => {
-                      setDeploymentStatus('idle');
-                      setErrorMessage('');
-                    }}
-                    size="lg"
-                    variant="destructive"
-                  >
-                    Try Again
-                  </Button>
-                  <Link href={`/builder?project=${projectId}`}>
-                    <Button size="lg" variant="outline" className="border-red-900 text-red-400 hover:bg-red-950">
-                      Back to Editor
-                    </Button>
-                  </Link>
+          <Card className="error-card">
+            <CardContent className="error-card__content">
+              <XCircle className="error-card__icon" />
+              <h2>Deployment Failed</h2>
+              <p>We encountered an error while deploying your website</p>
+              {errorMessage && (
+                <div className="error-card__message">
+                  <p>{errorMessage}</p>
                 </div>
+              )}
+              <div className="flex gap-4 justify-center">
+                <Button
+                  onClick={() => {
+                    setDeploymentStatus('idle');
+                    setErrorMessage('');
+                  }}
+                  size="lg"
+                  variant="destructive"
+                >
+                  Try Again
+                </Button>
+                <Link href={`/builder?project=${projectId}`}>
+                  <Button size="lg" variant="outline" className="border-red-900 text-red-400 hover:bg-red-950">
+                    Back to Editor
+                  </Button>
+                </Link>
               </div>
             </CardContent>
           </Card>

@@ -1,0 +1,360 @@
+@import 'variables';
+@import 'mixins';
+
+.builder-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f8fafc;
+}
+
+.builder-nav {
+  border-bottom: 1px solid $border;
+  background-color: $background;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  &__left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  &__project-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+
+    span {
+      color: $destructive; // For error state
+    }
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+}
+
+.builder-workspace {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.chat-panel {
+  width: 50%;
+  border-right: 1px solid $border;
+  display: flex;
+  flex-direction: column;
+  background-color: $background;
+
+  &__messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  &__empty-state {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+    p {
+      color: $muted-foreground;
+      margin-bottom: 1rem;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+      text-align: left;
+      color: $muted-foreground;
+      font-size: 0.875rem;
+    }
+    li {
+      margin-bottom: 0.25rem;
+    }
+  }
+
+  &__input-area {
+    border-top: 1px solid $border;
+    padding: 1rem;
+    background-color: $background;
+  }
+
+  &__input-wrapper {
+    border: 1px solid $border;
+    border-radius: $radius;
+    background-color: $background;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+
+    &:focus-within {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+    }
+  }
+
+  &__selection-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    background-color: #eff6ff;
+    border: 1px solid #dbeafe;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    color: #1d4ed8;
+    width: fit-content;
+
+    code {
+      font-family: monospace;
+      font-weight: 600;
+    }
+  }
+
+  &__selection-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.125rem;
+    border-radius: 9999px;
+    color: #3b82f6;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+
+    &:hover {
+      background-color: #dbeafe;
+      color: #1d4ed8;
+    }
+  }
+
+  &__input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  &__input {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    height: auto !important;
+    background: transparent !important;
+    flex: 1;
+
+    &:focus {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+  }
+
+  &__send-btn {
+    flex-shrink: 0;
+    height: 2rem;
+    width: 2rem;
+  }
+}
+
+.chat-message {
+  padding: 1rem;
+  border-radius: $radius;
+  border: 1px solid $border;
+  background-color: $background;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+
+  &--user {
+    background-color: #eff6ff;
+    margin-left: 3rem;
+
+    .chat-message__avatar {
+      background-color: #2563eb;
+    }
+  }
+
+  &--assistant {
+    background-color: #f8fafc;
+    margin-right: 3rem;
+
+    .chat-message__avatar {
+      background-color: #475569;
+    }
+  }
+
+  &__content {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  &__avatar {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 0.875rem;
+    flex-shrink: 0;
+  }
+
+  &__text {
+    font-size: 0.875rem;
+    white-space: pre-wrap;
+    flex: 1;
+  }
+}
+
+.preview-panel {
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+
+  &__tabs {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__header {
+    border-bottom: 1px solid $border;
+    background-color: $background;
+    padding: 0 1rem;
+  }
+
+  &__content {
+    flex: 1;
+    position: relative;
+    margin: 0;
+    padding: 0;
+  }
+
+  &__iframe-wrapper {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    inset: 0;
+  }
+
+  .preview-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+  }
+
+  &__code-wrapper {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    inset: 0;
+    background-color: $background;
+    overflow-y: auto;
+    padding: 1rem;
+  }
+}
+
+.code-block {
+  margin-bottom: 1rem;
+
+  h3 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: $muted-foreground;
+    margin-bottom: 0.5rem;
+  }
+
+  pre {
+    background-color: #0f172a;
+    color: #f1f5f9;
+    padding: 1rem;
+    border-radius: $radius;
+    overflow-x: auto;
+    font-size: 0.75rem;
+    font-family: monospace;
+  }
+}
+
+.loading-indicator {
+  padding: 1rem;
+  background-color: #f8fafc;
+  margin-right: 3rem;
+  border-radius: $radius;
+  border: 1px solid #f1f5f9;
+
+  &__content {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  &__text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  &__status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #334155;
+  }
+
+  &__text {
+    font-weight: 500;
+    color: #3b82f6;
+  }
+
+  &__time {
+    font-size: 0.75rem;
+    color: #64748b;
+    background-color: #f1f5f9;
+    padding: 0.125rem 0.375rem;
+    border-radius: 9999px;
+    font-family: monospace;
+    min-width: 3rem;
+    text-align: center;
+  }
+
+  &__thought {
+    font-size: 0.75rem;
+    color: $muted-foreground;
+    font-style: italic;
+  }
+
+  &__progress {
+    height: 0.25rem;
+    width: 100%;
+    background-color: $border;
+    border-radius: 9999px;
+    overflow: hidden;
+
+    &-bar {
+      height: 100%;
+      background-color: #3b82f6;
+      width: 50%; // Animation would be handled by keyframes if we added them, or just static for now
+    }
+  }
+}

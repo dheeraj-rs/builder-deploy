@@ -1,35 +1,22 @@
 'use client';
 
-import { useEffect, useState, useRef, Suspense, createContext, useContext } from 'react';
+import { useEffect, useState, useRef, Suspense, createContext, useContext, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { generateWebsiteCode, generateWebsitePlan } from '@/lib/gemini';
 import { Loader2, Send, Code, Eye, Sparkles, Rocket, Save, Home, MousePointer2, X } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import '@/app/styles/builder.scss';
 
 // --- UI Components ---
 
 const Button = ({ className, variant = "default", size = "default", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link", size?: "default" | "sm" | "lg" | "icon" }) => {
-  const variants = {
-    default: "bg-slate-900 text-slate-50 hover:bg-slate-900/90",
-    destructive: "bg-red-500 text-slate-50 hover:bg-red-500/90",
-    outline: "border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-900",
-    secondary: "bg-slate-100 text-slate-900 hover:bg-slate-100/80",
-    ghost: "hover:bg-slate-100 hover:text-slate-900",
-    link: "text-slate-900 underline-offset-4 hover:underline",
-  };
-  const sizes = {
-    default: "h-10 px-4 py-2",
-    sm: "h-9 rounded-md px-3",
-    lg: "h-11 rounded-md px-8",
-    icon: "h-10 w-10",
-  };
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-        variants[variant],
-        sizes[size],
+        "btn",
+        `btn--${variant}`,
+        `btn--size-${size}`,
         className
       )}
       {...props}
@@ -41,17 +28,14 @@ const Input = ({ className, type, ...props }: React.InputHTMLAttributes<HTMLInpu
   return (
     <input
       type={type}
-      className={cn(
-        "flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-        className
-      )}
+      className={cn("input", className)}
       {...props}
     />
   );
 };
 
 const Card = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("rounded-lg border border-slate-200 bg-white text-slate-950 shadow-sm", className)} {...props} />
+  <div className={cn("card", className)} {...props} />
 );
 
 // Tabs Implementation
@@ -60,13 +44,13 @@ const TabsContext = createContext<{ value: string; onValueChange: (value: string
 const Tabs = ({ value, onValueChange, children, className }: { value: string; onValueChange: (value: string) => void; children: React.ReactNode; className?: string }) => {
   return (
     <TabsContext.Provider value={{ value, onValueChange }}>
-      <div className={className}>{children}</div>
+      <div className={cn("tabs", className)}>{children}</div>
     </TabsContext.Provider>
   );
 };
 
 const TabsList = ({ className, children }: { className?: string; children: React.ReactNode }) => (
-  <div className={cn("inline-flex h-10 items-center justify-center rounded-md bg-slate-100 p-1 text-slate-500", className)}>
+  <div className={cn("tabs__list", className)}>
     {children}
   </div>
 );
@@ -80,11 +64,12 @@ const TabsTrigger = ({ value, className, children }: { value: string; className?
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-        isActive ? "bg-white text-slate-950 shadow-sm" : "hover:bg-slate-200/50 hover:text-slate-900",
+        "tabs__trigger",
+        isActive && "tabs__trigger--active",
         className
       )}
       onClick={() => context.onValueChange(value)}
+      data-state={isActive ? "active" : "inactive"}
     >
       {children}
     </button>
@@ -98,7 +83,7 @@ const TabsContent = ({ value, children, className }: { value: string; children: 
   if (context.value !== value) return null;
 
   return (
-    <div className={cn("mt-2 ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2", className)}>
+    <div className={cn("tabs__content", className)}>
       {children}
     </div>
   );
@@ -141,7 +126,8 @@ function BuilderContent() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generationStatus, setGenerationStatus] = useState<'idle' | 'thinking' | 'generating' | 'completed'>('idle');
+  const [generationStatus, setGenerationStatus] = useState<'idle' | 'thinking' | 'generating' | 'saving' | 'completed'>('idle');
+  const [generationTime, setGenerationTime] = useState(0);
   const [currentThought, setCurrentThought] = useState('');
   const [htmlContent, setHtmlContent] = useState('');
   const [cssContent, setCssContent] = useState('');
@@ -153,19 +139,7 @@ function BuilderContent() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    initializeProject();
-  }, [templateId, projectId]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  useEffect(() => {
-    if (activeTab === 'preview') {
-      updatePreview();
-    }
-  }, [htmlContent, cssContent, jsContent, activeTab]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -179,22 +153,19 @@ function BuilderContent() {
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
-  useEffect(() => {
-    // Notify iframe about select mode change
-    if (iframeRef.current?.contentWindow) {
-      iframeRef.current.contentWindow.postMessage({
-        type: 'TOGGLE_SELECT_MODE',
-        isSelectMode
-      }, '*');
-    }
-  }, [isSelectMode]);
-
-  const initializeProject = async () => {
+  const initializeProject = useCallback(async () => {
     try {
       // Case 1: Load existing project
       if (projectId) {
         const response = await fetch(`/api/projects/${projectId}`);
-        if (!response.ok) throw new Error('Failed to fetch project');
+        if (!response.ok) {
+          if (response.status === 404) {
+            // Project not found, redirect to builder without project ID to create new
+            router.replace('/builder');
+            return;
+          }
+          throw new Error('Failed to fetch project');
+        }
 
         const existingProject = await response.json();
 
@@ -249,6 +220,8 @@ function BuilderContent() {
 
           if (newProject) {
             setProject(newProject);
+            // Update URL with new project ID
+            router.replace(`/builder?project=${newProject._id}`);
           }
         }
       } else {
@@ -272,15 +245,17 @@ function BuilderContent() {
 
         if (newProject) {
           setProject(newProject);
+          // Update URL with new project ID
+          router.replace(`/builder?project=${newProject._id}`);
         }
       }
     } catch (err: any) {
       console.error('Error initializing project:', err);
       setError(err.message || 'Failed to load project. Please check your connection and configuration.');
     }
-  };
+  }, [projectId, templateId, router]);
 
-  const updatePreview = () => {
+  const updatePreview = useCallback(() => {
     if (!iframeRef.current) return;
 
     const fullHtml = `
@@ -367,7 +342,46 @@ function BuilderContent() {
     const blob = new Blob([fullHtml], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     iframeRef.current.src = url;
-  };
+  }, [cssContent, htmlContent, jsContent, isSelectMode]);
+
+  useEffect(() => {
+    // Notify iframe about select mode change
+    if (iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({
+        type: 'TOGGLE_SELECT_MODE',
+        isSelectMode
+      }, '*');
+    }
+  }, [isSelectMode]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isGenerating) {
+      setGenerationTime(0);
+      interval = setInterval(() => {
+        setGenerationTime((prev) => prev + 0.1);
+      }, 100);
+    } else {
+      setGenerationTime(0);
+    }
+    return () => clearInterval(interval);
+  }, [isGenerating]);
+
+  useEffect(() => {
+    initializeProject();
+  }, [initializeProject]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
+    if (activeTab === 'preview') {
+      updatePreview();
+    }
+  }, [activeTab, updatePreview]);
+
+
 
   const handleSendMessage = async () => {
     if (!input.trim() || !project || isGenerating) return;
@@ -430,6 +444,8 @@ function BuilderContent() {
         }),
       });
 
+      setGenerationStatus('saving');
+
       const assistantMessagePayload = {
         project_id: project._id,
         role: 'assistant',
@@ -452,7 +468,7 @@ function BuilderContent() {
         _id: crypto.randomUUID(),
         project_id: project._id,
         role: 'assistant',
-        content: 'Sorry, I encountered an error while generating your website. Please try again.',
+        content: `Sorry, I encountered an error while generating your website. Details: ${error instanceof Error ? error.message : 'Unknown error'}`,
         created_at: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, errorMessage]);
@@ -489,20 +505,20 @@ function BuilderContent() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50">
-      <nav className="border-b bg-white px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="builder-container">
+      <nav className="builder-nav">
+        <div className="builder-nav__left">
           <Link href="/">
             <Button variant="ghost" size="icon">
               <Home className="h-5 w-5" />
             </Button>
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="builder-nav__project-info">
             <Sparkles className="h-5 w-5 text-blue-600" />
-            <span className="font-semibold text-red-500">{error ? `Error: ${error}` : (project?.name || 'Loading...')}</span>
+            <span>{error ? `Error: ${error}` : (project?.name || 'Loading...')}</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="builder-nav__actions">
           <Button
             variant={isSelectMode ? "secondary" : "outline"}
             onClick={() => setIsSelectMode(!isSelectMode)}
@@ -523,20 +539,20 @@ function BuilderContent() {
         </div>
       </nav>
 
-      <div className="flex-1 flex overflow-hidden">
-        <div className="w-1/2 border-r flex flex-col bg-white">
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="builder-workspace">
+        <div className="chat-panel">
+          <div className="chat-panel__messages">
             {messages.length === 0 ? (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center max-w-md">
+              <div className="chat-panel__empty-state">
+                <div>
                   <Sparkles className="h-12 w-12 text-blue-600 mx-auto mb-4" />
-                  <h2 className="text-2xl font-bold mb-2">Start Building with AI</h2>
-                  <p className="text-slate-600 mb-4">
+                  <h2>Start Building with AI</h2>
+                  <p>
                     Describe the website you want to create, and I will generate it for you!
                   </p>
-                  <div className="space-y-2 text-left">
-                    <p className="text-sm text-slate-500">Try asking:</p>
-                    <ul className="text-sm text-slate-600 space-y-1">
+                  <div>
+                    <p>Try asking:</p>
+                    <ul>
                       <li>• Create a landing page for a coffee shop</li>
                       <li>• Build a portfolio website for a photographer</li>
                       <li>• Make a pricing page with 3 tiers</li>
@@ -547,51 +563,48 @@ function BuilderContent() {
             ) : (
               <>
                 {messages.map((msg, idx) => (
-                  <Card
+                  <div
                     key={idx}
-                    className={`p-4 ${msg.role === 'user'
-                      ? 'bg-blue-50 ml-12'
-                      : 'bg-slate-50 mr-12'
-                      }`}
+                    className={`chat-message ${msg.role === 'user' ? 'chat-message--user' : 'chat-message--assistant'}`}
                   >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center ${msg.role === 'user'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-600 text-white'
-                          }`}
-                      >
+                    <div className="chat-message__content">
+                      <div className="chat-message__avatar">
                         {msg.role === 'user' ? 'U' : 'AI'}
                       </div>
-                      <div className="flex-1">
-                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      <div className="chat-message__text">
+                        {msg.content}
                       </div>
                     </div>
-                  </Card>
+                  </div>
                 ))}
                 <div ref={messagesEndRef} />
 
                 {isGenerating && (
-                  <div className="p-4 bg-slate-50 mr-12 rounded-lg border border-slate-100">
-                    <div className="flex items-center gap-3">
+                  <div className="loading-indicator">
+                    <div className="loading-indicator__content">
                       <div className="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center text-white animate-pulse">
                         <Sparkles className="h-4 w-4" />
                       </div>
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-slate-700">
-                            {generationStatus === 'thinking' ? 'Thinking...' : 'Generating Code...'}
+                      <div className="loading-indicator__text">
+                        <div className="loading-indicator__status">
+                          <span className="loading-indicator__text">
+                            {generationStatus === 'thinking' && 'Thinking...'}
+                            {generationStatus === 'generating' && 'Generating Code...'}
+                            {generationStatus === 'saving' && 'Saving & Finalizing...'}
+                          </span>
+                          <span className="loading-indicator__time">
+                            {generationTime.toFixed(1)}s
                           </span>
                           <Loader2 className="h-3 w-3 animate-spin text-slate-400" />
                         </div>
                         {generationStatus === 'thinking' && currentThought && (
-                          <p className="text-xs text-slate-500 italic animate-in fade-in duration-500">
+                          <p className="loading-indicator__thought">
                             {currentThought}
                           </p>
                         )}
                         {generationStatus === 'generating' && (
-                          <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
-                            <div className="h-full bg-blue-500 animate-progress-indeterminate" />
+                          <div className="loading-indicator__progress">
+                            <div className="loading-indicator__progress-bar" />
                           </div>
                         )}
                       </div>
@@ -602,41 +615,34 @@ function BuilderContent() {
             )}
           </div>
 
-          <div className="border-t p-4 bg-white">
+          <div className="chat-panel__input-wrapper">
             {selectedElement && (
-              <div className="mb-3 p-2 bg-blue-50 border border-blue-100 rounded-md flex items-center justify-between animate-in slide-in-from-bottom-2">
-                <div className="flex items-center gap-2 text-sm text-blue-700">
-                  <MousePointer2 className="h-3 w-3" />
-                  <span className="font-medium">Selected:</span>
-                  <code className="bg-blue-100 px-1 rounded text-xs">
-                    &lt;{selectedElement.tagName}&gt;
-                  </code>
-                  <span className="truncate max-w-[200px] text-xs opacity-70">
-                    {selectedElement.text}
-                  </span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-blue-500 hover:text-blue-700 hover:bg-blue-100"
+              <div className="chat-panel__selection-chip">
+                <MousePointer2 className="h-3 w-3" />
+                <span className="font-medium">Selected:</span>
+                <code>&lt;{selectedElement.tagName}&gt;</code>
+                <button
+                  className="chat-panel__selection-remove"
                   onClick={() => setSelectedElement(null)}
                 >
                   <X className="h-3 w-3" />
-                </Button>
+                </button>
               </div>
             )}
-            <div className="flex gap-2">
+            <div className="chat-panel__input-group">
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder="Describe what you want to build..."
+                placeholder={selectedElement ? "Describe changes for this element..." : "Describe what you want to build..."}
                 disabled={isGenerating}
-                className="flex-1"
+                className="chat-panel__input"
               />
               <Button
                 onClick={handleSendMessage}
                 disabled={isGenerating || !input.trim()}
+                className="chat-panel__send-btn"
+                size="icon"
               >
                 {isGenerating ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -648,9 +654,10 @@ function BuilderContent() {
           </div>
         </div>
 
-        <div className="w-1/2 flex flex-col">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-            <div className="border-b bg-white px-4">
+
+        <div className="preview-panel">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="preview-panel__tabs">
+            <div className="preview-panel__header">
               <TabsList className="w-full justify-start">
                 <TabsTrigger value="preview" className="gap-2">
                   <Eye className="h-4 w-4" />
@@ -663,41 +670,41 @@ function BuilderContent() {
               </TabsList>
             </div>
 
-            <div className="flex-1 m-0 p-0 relative">
+            <div className="preview-panel__content">
               {/* Preview Tab - Always mounted, toggled via CSS */}
               <div
-                className="w-full h-full absolute inset-0"
+                className="preview-panel__iframe-wrapper"
                 style={{ visibility: activeTab === 'preview' ? 'visible' : 'hidden', zIndex: activeTab === 'preview' ? 10 : 0 }}
               >
                 <iframe
                   ref={iframeRef}
-                  className="w-full h-full border-0"
+                  className="preview-iframe"
                   title="Preview"
                 />
               </div>
 
               {/* Code Tab */}
               <div
-                className="w-full h-full absolute inset-0 bg-white"
+                className="preview-panel__code-wrapper"
                 style={{ visibility: activeTab === 'code' ? 'visible' : 'hidden', zIndex: activeTab === 'code' ? 10 : 0 }}
               >
-                <div className="p-4 space-y-4 h-full overflow-y-auto">
-                  <div>
-                    <h3 className="font-semibold mb-2 text-sm text-slate-600">HTML</h3>
-                    <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto text-xs">
+                <div className="space-y-4">
+                  <div className="code-block">
+                    <h3>HTML</h3>
+                    <pre>
                       <code>{htmlContent || '// HTML will appear here'}</code>
                     </pre>
                   </div>
-                  <div>
-                    <h3 className="font-semibold mb-2 text-sm text-slate-600">CSS</h3>
-                    <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto text-xs">
+                  <div className="code-block">
+                    <h3>CSS</h3>
+                    <pre>
                       <code>{cssContent || '// CSS will appear here'}</code>
                     </pre>
                   </div>
                   {jsContent && (
-                    <div>
-                      <h3 className="font-semibold mb-2 text-sm text-slate-600">JavaScript</h3>
-                      <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto text-xs">
+                    <div className="code-block">
+                      <h3>JavaScript</h3>
+                      <pre>
                         <code>{jsContent}</code>
                       </pre>
                     </div>
@@ -708,7 +715,7 @@ function BuilderContent() {
           </Tabs>
         </div>
       </div>
-    </div>
+    </div >
   );
 }
 

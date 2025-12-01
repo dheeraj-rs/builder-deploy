@@ -5,30 +5,17 @@ import { useRouter } from 'next/navigation';
 import { Sparkles, Plus, ExternalLink, Edit, Trash2, Globe } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import '@/app/styles/dashboard.scss';
 
 // --- UI Components ---
 
 const Button = ({ className, variant = "default", size = "default", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link", size?: "default" | "sm" | "lg" | "icon" }) => {
-  const variants = {
-    default: "bg-slate-900 text-slate-50 hover:bg-slate-900/90",
-    destructive: "bg-red-500 text-slate-50 hover:bg-red-500/90",
-    outline: "border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-900",
-    secondary: "bg-slate-100 text-slate-900 hover:bg-slate-100/80",
-    ghost: "hover:bg-slate-100 hover:text-slate-900",
-    link: "text-slate-900 underline-offset-4 hover:underline",
-  };
-  const sizes = {
-    default: "h-10 px-4 py-2",
-    sm: "h-9 rounded-md px-3",
-    lg: "h-11 rounded-md px-8",
-    icon: "h-10 w-10",
-  };
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-        variants[variant],
-        sizes[size],
+        "btn",
+        `btn--${variant}`,
+        `btn--size-${size}`,
         className
       )}
       {...props}
@@ -37,23 +24,23 @@ const Button = ({ className, variant = "default", size = "default", ...props }: 
 };
 
 const Card = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("rounded-lg border border-slate-200 bg-white text-slate-950 shadow-sm", className)} {...props} />
+  <div className={cn("card", className)} {...props} />
 );
 
 const CardHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("flex flex-col space-y-1.5 p-6", className)} {...props} />
+  <div className={cn("card__header", className)} {...props} />
 );
 
 const CardTitle = ({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (
-  <h3 className={cn("text-2xl font-semibold leading-none tracking-tight", className)} {...props} />
+  <h3 className={cn("card__title", className)} {...props} />
 );
 
 const CardDescription = ({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) => (
-  <p className={cn("text-sm text-slate-500", className)} {...props} />
+  <p className={cn("card__description", className)} {...props} />
 );
 
 const CardContent = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("p-6 pt-0", className)} {...props} />
+  <div className={cn("card__content", className)} {...props} />
 );
 
 // --- Page Component ---
@@ -120,27 +107,23 @@ export default function DashboardPage() {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <nav className="border-b bg-white/80 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Link href="/">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-6 w-6 text-blue-600" />
-                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                  WebForge AI
-                </span>
-              </div>
-            </Link>
-          </div>
+    <div className="dashboard-container">
+      <nav className="dashboard-nav">
+        <div className="dashboard-nav__content">
+          <Link href="/">
+            <div className="dashboard-nav__brand">
+              <Sparkles className="h-6 w-6 text-blue-600" />
+              <span>WebForge AI</span>
+            </div>
+          </Link>
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="flex justify-between items-center mb-8">
+      <div className="dashboard-content">
+        <div className="dashboard-header">
           <div>
-            <h1 className="text-4xl font-bold mb-2">My Projects</h1>
-            <p className="text-slate-600">
+            <h1>My Projects</h1>
+            <p>
               Manage and deploy your AI-generated websites
             </p>
           </div>
@@ -155,11 +138,11 @@ export default function DashboardPage() {
         {isLoading ? (
           <div className="text-center py-12">Loading projects...</div>
         ) : projects.length === 0 ? (
-          <Card className="py-12">
-            <CardContent className="text-center">
-              <Sparkles className="h-16 w-16 text-slate-300 mx-auto mb-4" />
-              <h2 className="text-2xl font-semibold mb-2">No projects yet</h2>
-              <p className="text-slate-600 mb-6">
+          <Card className="empty-state">
+            <CardContent>
+              <Sparkles className="empty-state__icon" />
+              <h2>No projects yet</h2>
+              <p>
                 Start building your first website with AI
               </p>
               <Link href="/builder">
@@ -171,21 +154,21 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="projects-grid">
             {projects.map((project) => (
-              <Card key={project._id} className="hover:shadow-lg transition-shadow">
+              <Card key={project._id} className="project-card">
                 <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <CardTitle className="line-clamp-1">{project.name}</CardTitle>
-                      <CardDescription className="line-clamp-2 mt-1">
+                  <div className="project-card__header-content">
+                    <div className="project-card__info">
+                      <CardTitle className="project-card__title">{project.name}</CardTitle>
+                      <CardDescription className="project-card__description">
                         {project.description || 'No description'}
                       </CardDescription>
                     </div>
                     <div
-                      className={`px-2 py-1 text-xs rounded-full ${project.status === 'deployed'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-slate-100 text-slate-700'
+                      className={`project-card__status ${project.status === 'deployed'
+                        ? 'project-card__status--deployed'
+                        : 'project-card__status--draft'
                         }`}
                     >
                       {project.status}
@@ -199,14 +182,14 @@ export default function DashboardPage() {
                         href={project.vercel_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                        className="project-card__link"
                       >
                         <Globe className="h-4 w-4" />
                         View Live Site
                         <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
-                    <div className="flex gap-2 pt-2">
+                    <div className="project-card__actions">
                       <Link href={`/builder?project=${project._id}`} className="flex-1">
                         <Button variant="outline" className="w-full">
                           <Edit className="mr-2 h-4 w-4" />
