@@ -1,0 +1,35 @@
+
+> builder-deploy@0.1.0 build
+> next build
+
+   Creating an optimized production build...
+Browserslist: caniuse-lite is outdated. Please run:
+  npx browserslist@latest --update-db
+  Why you should do it regularly: https://github.com/browserslist/browserslist#browsers-data-updating
+Failed to compile.
+
+./app/globals.css
+Module not found: Can't resolve 'tailwindcss'
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./app/globals.css
+
+./app/globals.css
+Error: Can't resolve 'tailwindcss'
+    at finishWithoutResolve (/Users/dheeraj/builder-deploy/node_modules/next/dist/compiled/webpack/bundle5.js:1:191673)
+    at /Users/dheeraj/builder-deploy/node_modules/next/dist/compiled/webpack/bundle5.js:1:192573
+    at /Users/dheeraj/builder-deploy/node_modules/next/dist/compiled/webpack/bundle5.js:1:193202
+    at eval (eval at create (/Users/dheeraj/builder-deploy/node_modules/next/dist/compiled/webpack/bundle5.js:13:28867), <anonymous>:16:1)
+    at /Users/dheeraj/builder-deploy/node_modules/next/dist/compiled/webpack/bundle5.js:1:193202
+    at eval (eval at create (/Users/dheeraj/builder-deploy/node_modules/next/dist/compiled/webpack/bundle5.js:13:28867), <anonymous>:27:1)
+    at /Users/dheeraj/builder-deploy/node_modules/next/dist/compiled/webpack/bundle5.js:1:176193
+    at /Users/dheeraj/builder-deploy/node_modules/next/dist/compiled/webpack/bundle5.js:1:193202
+    at eval (eval at create (/Users/dheeraj/builder-deploy/node_modules/next/dist/compiled/webpack/bundle5.js:13:28867), <anonymous>:16:1)
+    at /Users/dheeraj/builder-deploy/node_modules/next/dist/compiled/webpack/bundle5.js:1:208291
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+> Build failed because of webpack errors

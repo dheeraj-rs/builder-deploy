@@ -1,14 +1,111 @@
 'use client';
 
-import { useEffect, useState, useRef, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense, createContext, useContext } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { generateWebsiteCode, generateWebsitePlan } from '@/lib/gemini';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Send, Code, Eye, Sparkles, Rocket, Save, Home, MousePointer2, X } from 'lucide-react';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
+
+// --- UI Components ---
+
+const Button = ({ className, variant = "default", size = "default", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link", size?: "default" | "sm" | "lg" | "icon" }) => {
+  const variants = {
+    default: "bg-slate-900 text-slate-50 hover:bg-slate-900/90",
+    destructive: "bg-red-500 text-slate-50 hover:bg-red-500/90",
+    outline: "border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-900",
+    secondary: "bg-slate-100 text-slate-900 hover:bg-slate-100/80",
+    ghost: "hover:bg-slate-100 hover:text-slate-900",
+    link: "text-slate-900 underline-offset-4 hover:underline",
+  };
+  const sizes = {
+    default: "h-10 px-4 py-2",
+    sm: "h-9 rounded-md px-3",
+    lg: "h-11 rounded-md px-8",
+    icon: "h-10 w-10",
+  };
+  return (
+    <button
+      className={cn(
+        "inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+        variants[variant],
+        sizes[size],
+        className
+      )}
+      {...props}
+    />
+  );
+};
+
+const Input = ({ className, type, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => {
+  return (
+    <input
+      type={type}
+      className={cn(
+        "flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+        className
+      )}
+      {...props}
+    />
+  );
+};
+
+const Card = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn("rounded-lg border border-slate-200 bg-white text-slate-950 shadow-sm", className)} {...props} />
+);
+
+// Tabs Implementation
+const TabsContext = createContext<{ value: string; onValueChange: (value: string) => void } | null>(null);
+
+const Tabs = ({ value, onValueChange, children, className }: { value: string; onValueChange: (value: string) => void; children: React.ReactNode; className?: string }) => {
+  return (
+    <TabsContext.Provider value={{ value, onValueChange }}>
+      <div className={className}>{children}</div>
+    </TabsContext.Provider>
+  );
+};
+
+const TabsList = ({ className, children }: { className?: string; children: React.ReactNode }) => (
+  <div className={cn("inline-flex h-10 items-center justify-center rounded-md bg-slate-100 p-1 text-slate-500", className)}>
+    {children}
+  </div>
+);
+
+const TabsTrigger = ({ value, className, children }: { value: string; className?: string; children: React.ReactNode }) => {
+  const context = useContext(TabsContext);
+  if (!context) throw new Error("TabsTrigger must be used within Tabs");
+
+  const isActive = context.value === value;
+
+  return (
+    <button
+      className={cn(
+        "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+        isActive ? "bg-white text-slate-950 shadow-sm" : "hover:bg-slate-200/50 hover:text-slate-900",
+        className
+      )}
+      onClick={() => context.onValueChange(value)}
+    >
+      {children}
+    </button>
+  );
+};
+
+const TabsContent = ({ value, children, className }: { value: string; children: React.ReactNode; className?: string }) => {
+  const context = useContext(TabsContext);
+  if (!context) throw new Error("TabsContent must be used within Tabs");
+
+  if (context.value !== value) return null;
+
+  return (
+    <div className={cn("mt-2 ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2", className)}>
+      {children}
+    </div>
+  );
+};
+
+
+// --- Page Component ---
 
 type Project = {
   _id: string;
@@ -197,6 +294,7 @@ function BuilderContent() {
           .webforge-selected-highlight {
             outline: 2px solid #3b82f6 !important;
             cursor: pointer !important;
+            z-index: 999999 !important;
           }
         </style>
       </head>
